@@ -1,0 +1,144 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Serviços oferecidos pela estética
+model Service {
+  id                   String                @id @default(cuid())
+  name                 String
+  description          String?
+  durationMinutes      Int                   @map("duration_minutes")
+  price                Decimal               @db.Decimal(10, 2)
+  isActive             Boolean               @default(true) @map("is_active")
+  serviceGroup         String?               @map("service_group") // Grupo para exclusividade mútua (ex: "lavagem", "polimento")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  
+  appointmentServices  AppointmentService[]
+
+  @@map("services")
+}
+
+// Clientes
+model Customer {
+  id           String        @id @default(cuid())
+  name         String
+  phone        String        @unique
+  email        String?       @unique
+  password     String?       // null = cliente criado pelo admin
+  notes        String?       @db.Text
+  isAdmin      Boolean       @default(false) @map("is_admin")
+  rating       Decimal       @default(5.0) @db.Decimal(2, 1) // Nota de 0.0 a 5.0
+  noShowCount  Int           @default(0) @map("no_show_count") // Contador de faltas
+  completedCount Int         @default(0) @map("completed_count") // Contador de comparecimentos
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  
+  cars         Car[]
+  appointments Appointment[]
+
+  @@map("customers")
+}
+
+// Carros dos clientes
+model Car {
+  id           String        @id @default(cuid())
+  customerId   String        @map("customer_id")
+  plate        String
+  model        String
+  color        String?
+  notes        String?       @db.Text
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@map("cars")
+}
+
+// Status possíveis de um agendamento
+// Fluxo: Cliente agenda → PENDING → Cliente confirma (24h antes) → CONFIRMED_BY_CLIENT → Estética confirma → CONFIRMED → Em andamento → Concluído
+enum AppointmentStatus {
+  PENDING              // aguardando confirmação do cliente (24h antes)
+  CONFIRMED_BY_CLIENT  // cliente confirmou, aguardando confirmação da estética
+  CONFIRMED            // estética confirmou, agendamento garantido
+  RESCHEDULED          // estética sugeriu outro horário, aguardando cliente aceitar
+  IN_PROGRESS          // em andamento
+  COMPLETED            // concluído
+  CANCELED             // cancelado
+  NO_SHOW              // cliente não compareceu
+
+  @@map("appointment_status")
+}
+
+// Agendamentos
+model Appointment {
+  id                  String                @id @default(cuid())
+  customerId          String                @map("customer_id")
+  carId               String                @map("car_id")
+  startDatetime       DateTime              @map("start_datetime")
+  endDatetime         DateTime              @map("end_datetime")
+  status              AppointmentStatus     @default(PENDING)
+  totalPrice          Decimal               @db.Decimal(10, 2) @map("total_price")
+  notes               String?               @db.Text
+  businessNotes       String?               @db.Text @map("business_notes") // notas internas da estética
+  suggestedDatetime   DateTime?             @map("suggested_datetime") // horário sugerido quando RESCHEDULED
+  confirmedByClientAt DateTime?             @map("confirmed_by_client_at")
+  confirmedByBusinessAt DateTime?           @map("confirmed_by_business_at")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
+  
+  customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  car                 Car                   @relation(fields: [carId], references: [id], onDelete: Restrict)
+  appointmentServices AppointmentService[]
+
+  @@index([startDatetime, endDatetime])
+  @@index([status])
+  @@map("appointments")
+}
+
+// Tabela pivô N:N entre appointments e services
+model AppointmentService {
+  id              String      @id @default(cuid())
+  appointmentId   String      @map("appointment_id")
+  serviceId       String      @map("service_id")
+  price           Decimal     @db.Decimal(10, 2) // preço no momento do agendamento
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+  
+  appointment     Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service         Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@map("appointment_services")
+}
+
+// Configurações da agenda (deve ter apenas 1 registro)
+model Settings {
+  id                    String   @id @default(cuid())
+  openingTimeWeekday    String   @map("opening_time_weekday") // formato HH:MM, ex: "08:00"
+  closingTimeWeekday    String   @map("closing_time_weekday") // formato HH:MM, ex: "18:00"
+  slotIntervalMinutes   Int      @map("slot_interval_minutes") // ex: 15
+  maxCarsPerSlot        Int      @map("max_cars_per_slot") // ex: 1 ou 2
+  timezone              String   @default("America/Sao_Paulo")
+  
+  // Sistema de Reputação
+  reputationEnabled         Boolean  @default(true) @map("reputation_enabled") // Ativar/desativar sistema
+  reputationNoShowPenalty   Decimal  @default(2.5) @db.Decimal(2, 1) @map("reputation_no_show_penalty") // Nota que o cliente fica após uma falta
+  reputationMinForAdvance   Decimal  @default(3.0) @db.Decimal(2, 1) @map("reputation_min_for_advance") // Nota mínima para não precisar pagar antecipado
+  reputationAdvancePercent  Int      @default(50) @map("reputation_advance_percent") // Porcentagem de pagamento antecipado
+  reputationRecoveryOnShow  Boolean  @default(true) @map("reputation_recovery_on_show") // Se comparecer após pagar antecipado, volta para 5.0
+  
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
