@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/Input'
 import { Loading } from '@/components/ui/Loading'
 import { Alert } from '@/components/ui/Alert'
 import { Modal } from '@/components/ui/Modal'
+import { CarCard, VehicleTypeSelector, VehicleType } from '@/components/ui/CarCard'
 
 interface ProfileFormData {
   name: string
@@ -28,6 +29,7 @@ interface CarFormData {
   plate: string
   year: string
   color: string
+  vehicleType: VehicleType
 }
 
 interface Car {
@@ -36,6 +38,7 @@ interface Car {
   plate: string
   year: number | null
   color: string | null
+  vehicleType: VehicleType
 }
 
 export default function PerfilPage() {
@@ -50,10 +53,12 @@ export default function PerfilPage() {
   const [showCarModal, setShowCarModal] = useState(false)
   const [editingCar, setEditingCar] = useState<Car | null>(null)
   const [deletingCarId, setDeletingCarId] = useState<string | null>(null)
+  const [selectedCarId, setSelectedCarId] = useState<string | null>(null)
 
   const profileForm = useForm<ProfileFormData>()
   const passwordForm = useForm<PasswordFormData>()
   const carForm = useForm<CarFormData>()
+  const vehicleType = carForm.watch('vehicleType') || 'HATCH'
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -117,7 +122,7 @@ export default function PerfilPage() {
     if (data.newPassword !== data.confirmPassword) {
       passwordForm.setError('confirmPassword', {
         type: 'manual',
-        message: 'As senhas não coincidem'
+        message: 'As senhas nao coincidem'
       })
       return
     }
@@ -125,7 +130,7 @@ export default function PerfilPage() {
     if (data.newPassword.length < 6) {
       passwordForm.setError('newPassword', {
         type: 'manual',
-        message: 'A senha deve ter no mínimo 6 caracteres'
+        message: 'A senha deve ter no minimo 6 caracteres'
       })
       return
     }
@@ -182,23 +187,23 @@ export default function PerfilPage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Erro ao salvar veículo')
+        throw new Error(errorData.error || 'Erro ao salvar veiculo')
       }
 
-      setSuccess(editingCar ? 'Veículo atualizado com sucesso!' : 'Veículo cadastrado com sucesso!')
+      setSuccess(editingCar ? 'Veiculo atualizado com sucesso!' : 'Veiculo cadastrado com sucesso!')
       setShowCarModal(false)
       setEditingCar(null)
       carForm.reset()
       loadProfile()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar veículo')
+      setError(err instanceof Error ? err.message : 'Erro ao salvar veiculo')
     } finally {
       setSubmitting(false)
     }
   }
 
   async function handleDeleteCar(carId: string) {
-    if (!confirm('Tem certeza que deseja excluir este veículo?')) {
+    if (!confirm('Tem certeza que deseja excluir este veiculo?')) {
       return
     }
     setDeletingCarId(carId)
@@ -209,10 +214,10 @@ export default function PerfilPage() {
       })
 
       if (!response.ok) {
-        throw new Error('Erro ao excluir veículo')
+        throw new Error('Erro ao excluir veiculo')
       }
 
-      setSuccess('Veículo excluído com sucesso!')
+      setSuccess('Veiculo excluido com sucesso!')
       loadProfile()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir')
@@ -227,7 +232,8 @@ export default function PerfilPage() {
       model: car.model,
       plate: car.plate,
       year: car.year?.toString() || '',
-      color: car.color || ''
+      color: car.color || '',
+      vehicleType: car.vehicleType || 'HATCH'
     })
     setShowCarModal(true)
   }
@@ -238,7 +244,8 @@ export default function PerfilPage() {
       model: '',
       plate: '',
       year: '',
-      color: ''
+      color: '',
+      vehicleType: 'HATCH'
     })
     setShowCarModal(true)
   }
@@ -263,7 +270,7 @@ export default function PerfilPage() {
         <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-4">
           <Input
             label="Nome Completo"
-            {...profileForm.register('name', { required: 'Nome é obrigatório' })}
+            {...profileForm.register('name', { required: 'Nome e obrigatorio' })}
             error={profileForm.formState.errors.name?.message}
             required
           />
@@ -271,14 +278,14 @@ export default function PerfilPage() {
           <Input
             label="Email"
             type="email"
-            {...profileForm.register('email', { required: 'Email é obrigatório' })}
+            {...profileForm.register('email', { required: 'Email e obrigatorio' })}
             error={profileForm.formState.errors.email?.message}
             required
           />
           
           <Input
             label="Telefone"
-            {...profileForm.register('phone', { required: 'Telefone é obrigatório' })}
+            {...profileForm.register('phone', { required: 'Telefone e obrigatorio' })}
             error={profileForm.formState.errors.phone?.message}
             placeholder="(00) 00000-0000"
             required
@@ -286,7 +293,7 @@ export default function PerfilPage() {
 
           <div className="flex gap-4">
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Salvando...' : 'Salvar Alterações'}
+              {submitting ? 'Salvando...' : 'Salvar Alteracoes'}
             </Button>
             <Button type="button" variant="secondary" onClick={() => setShowPasswordModal(true)}>
               Alterar Senha
@@ -296,32 +303,50 @@ export default function PerfilPage() {
       </Card>
 
       <Card>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Meus Veículos</h2>
-          <Button size="sm" onClick={openNewCar}>+ Adicionar Veículo</Button>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-semibold">Meus Veiculos</h2>
+          <Button size="sm" onClick={openNewCar}>+ Adicionar Veiculo</Button>
         </div>
 
         {cars.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">Nenhum veículo cadastrado</p>
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4"></div>
+            <p className="text-gray-400">Nenhum veiculo cadastrado</p>
+            <p className="text-sm text-gray-500 mt-2">Adicione seu primeiro veiculo para comecar!</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {cars.map((car) => (
-              <div key={car.id} className="flex items-center justify-between p-4 border border-gray-700 rounded bg-gray-800/50">
-                <div>
-                  <p className="font-medium text-white">{car.model}</p>
-                  <p className="text-sm text-gray-400">
-                    {car.plate}
-                    {car.year && ` • ${car.year}`}
-                    {car.color && ` • ${car.color}`}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary" onClick={() => openEditCar(car)} disabled={deletingCarId === car.id}>
-                    Editar
-                  </Button>
-                  <Button size="sm" variant="danger" onClick={() => handleDeleteCar(car.id)} disabled={deletingCarId === car.id}>
-                    {deletingCarId === car.id ? 'Excluindo...' : 'Excluir'}
-                  </Button>
+              <div key={car.id} className="relative group">
+                <CarCard
+                  id={car.id}
+                  model={car.model}
+                  plate={car.plate}
+                  color={car.color}
+                  vehicleType={car.vehicleType || 'HATCH'}
+                  isSelected={selectedCarId === car.id}
+                  onClick={() => setSelectedCarId(selectedCarId === car.id ? null : car.id)}
+                />
+                <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openEditCar(car); }}
+                    className="p-2 bg-gray-800/90 rounded-lg text-cyan-400 hover:bg-gray-700 transition"
+                    title="Editar"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDeleteCar(car.id); }}
+                    className="p-2 bg-gray-800/90 rounded-lg text-red-400 hover:bg-gray-700 transition"
+                    disabled={deletingCarId === car.id}
+                    title="Excluir"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
@@ -341,7 +366,7 @@ export default function PerfilPage() {
           <Input
             label="Senha Atual"
             type="password"
-            {...passwordForm.register('currentPassword', { required: 'Senha atual é obrigatória' })}
+            {...passwordForm.register('currentPassword', { required: 'Senha atual e obrigatoria' })}
             error={passwordForm.formState.errors.currentPassword?.message}
             required
           />
@@ -349,7 +374,7 @@ export default function PerfilPage() {
           <Input
             label="Nova Senha"
             type="password"
-            {...passwordForm.register('newPassword', { required: 'Nova senha é obrigatória' })}
+            {...passwordForm.register('newPassword', { required: 'Nova senha e obrigatoria' })}
             error={passwordForm.formState.errors.newPassword?.message}
             required
           />
@@ -357,7 +382,7 @@ export default function PerfilPage() {
           <Input
             label="Confirmar Nova Senha"
             type="password"
-            {...passwordForm.register('confirmPassword', { required: 'Confirmação é obrigatória' })}
+            {...passwordForm.register('confirmPassword', { required: 'Confirmacao e obrigatoria' })}
             error={passwordForm.formState.errors.confirmPassword?.message}
             required
           />
@@ -387,12 +412,20 @@ export default function PerfilPage() {
           setEditingCar(null)
           carForm.reset()
         }}
-        title={editingCar ? 'Editar Veículo' : 'Novo Veículo'}
+        title={editingCar ? 'Editar Veiculo' : 'Novo Veiculo'}
       >
         <form onSubmit={carForm.handleSubmit(onCarSubmit)} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Tipo de Veiculo</label>
+            <VehicleTypeSelector
+              value={vehicleType}
+              onChange={(type) => carForm.setValue('vehicleType', type)}
+            />
+          </div>
+
           <Input
             label="Modelo"
-            {...carForm.register('model', { required: 'Modelo é obrigatório' })}
+            {...carForm.register('model', { required: 'Modelo e obrigatorio' })}
             error={carForm.formState.errors.model?.message}
             placeholder="Ex: Honda Civic"
             required
@@ -400,26 +433,28 @@ export default function PerfilPage() {
           
           <Input
             label="Placa"
-            {...carForm.register('plate', { required: 'Placa é obrigatória' })}
+            {...carForm.register('plate', { required: 'Placa e obrigatoria' })}
             error={carForm.formState.errors.plate?.message}
-            placeholder="ABC-1234"
+            placeholder="ABC1D23"
             required
           />
           
-          <Input
-            label="Ano"
-            type="number"
-            {...carForm.register('year')}
-            placeholder="2020"
-          />
-          
-          <Input
-            label="Cor"
-            {...carForm.register('color')}
-            placeholder="Preto"
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Ano"
+              type="number"
+              {...carForm.register('year')}
+              placeholder="2020"
+            />
+            
+            <Input
+              label="Cor"
+              {...carForm.register('color')}
+              placeholder="Preto"
+            />
+          </div>
 
-          <div className="flex gap-4">
+          <div className="flex gap-4 pt-2">
             <Button type="submit" disabled={submitting}>
               {submitting ? 'Salvando...' : 'Salvar'}
             </Button>

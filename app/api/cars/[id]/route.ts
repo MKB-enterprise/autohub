@@ -38,7 +38,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { plate, model, color, notes } = body
+    const { plate, model, color, notes, year, vehicleType } = body
 
     const car = await prisma.car.update({
       where: { id: params.id },
@@ -46,7 +46,9 @@ export async function PATCH(
         ...(plate && { plate }),
         ...(model && { model }),
         ...(color !== undefined && { color }),
-        ...(notes !== undefined && { notes })
+        ...(notes !== undefined && { notes }),
+        ...(year !== undefined && { year }),
+        ...(vehicleType && { vehicleType })
       },
       include: {
         customer: true
@@ -61,6 +63,14 @@ export async function PATCH(
       { status: 500 }
     )
   }
+}
+
+// PUT /api/cars/[id] - Alias for PATCH
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return PATCH(request, { params })
 }
 
 // DELETE /api/cars/[id]

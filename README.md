@@ -1,158 +1,107 @@
-# Sistema de Agendamento - Estética Automotiva
+# 🚗 Sistema de Agendamento - Estética Automotiva
 
-Sistema completo de controle de agendamentos para estética automotiva, desenvolvido com Next.js 14, TypeScript, Prisma e PostgreSQL.
+Sistema completo de controle de agendamentos para estética automotiva, com área do cliente e área administrativa. Desenvolvido com Next.js 14, TypeScript, Prisma e PostgreSQL.
+
+---
+
+## 📋 Índice
+
+- [Stack Tecnológica](#-stack-tecnológica)
+- [Funcionalidades](#-funcionalidades)
+- [Instalação](#-instalação-e-configuração)
+- [Estrutura do Projeto](#-estrutura-do-projeto)
+- [Sistema de Autenticação](#-sistema-de-autenticação)
+- [Sistema de Confirmação de Agendamentos](#-sistema-de-confirmação-de-agendamentos)
+- [Sistema de Reputação do Cliente](#-sistema-de-reputação-do-cliente)
+- [Grupos de Serviços](#-grupos-de-serviços-exclusividade-mútua)
+- [API Endpoints](#-api-endpoints)
+- [Configurações](#️-configurações)
+- [Deploy](#-deploy)
+
+---
 
 ## 🚀 Stack Tecnológica
 
-- **Frontend + Backend**: Next.js 14 (App Router)
-- **Linguagem**: TypeScript
-- **Banco de Dados**: PostgreSQL
-- **ORM**: Prisma
-- **Formulários**: React Hook Form
-- **Estilização**: Tailwind CSS
-- **Deploy**: Vercel (recomendado)
-- **Banco de Dados**: Supabase ou Railway (recomendado)
+| Tecnologia | Uso |
+|------------|-----|
+| **Next.js 14** | Frontend + Backend (App Router) |
+| **TypeScript** | Tipagem estática |
+| **PostgreSQL** | Banco de dados |
+| **Prisma** | ORM |
+| **Tailwind CSS** | Estilização |
+| **SWR** | Cache e revalidação de dados |
+| **React Hook Form** | Formulários |
+| **bcryptjs** | Hash de senhas |
+| **date-fns** | Manipulação de datas |
 
-## 📋 Funcionalidades
+---
 
-### ✅ Gerenciamento de Agendamentos
-- Visualização diária da agenda com navegação entre dias
-- Criação de novos agendamentos com verificação de disponibilidade em tempo real
-- Múltiplos serviços por agendamento
-- Controle de status: Agendado → Em Andamento → Concluído
-- Cancelamento e registro de não comparecimento
+## ✨ Funcionalidades
 
-### ✅ Gerenciamento de Clientes
-- CRUD completo de clientes
-- Histórico de agendamentos por cliente
-- Busca por nome e telefone
-- Múltiplos veículos por cliente
+### 👤 Área do Cliente
+- ✅ Cadastro e login de clientes
+- ✅ Cadastro de veículos
+- ✅ Agendamento de serviços com seleção de horários disponíveis
+- ✅ Visualização dos agendamentos (próximos e histórico)
+- ✅ Confirmação de agendamento 24h antes
+- ✅ Aceitar/recusar reagendamentos sugeridos
+- ✅ Sistema de reputação com estrelas
+- ✅ Edição de perfil
 
-### ✅ Gerenciamento de Serviços
-- CRUD de serviços oferecidos
-- Controle de duração (minutos) e preço
-- Ativação/desativação de serviços
-- Cálculo automático de duração e valor total
+### 🔧 Área Administrativa
+- ✅ Dashboard com estatísticas do dia
+- ✅ Agenda diária com navegação entre dias
+- ✅ Criação de agendamentos para clientes
+- ✅ Gerenciamento de clientes e veículos
+- ✅ CRUD de serviços com grupos de exclusividade
+- ✅ Fluxo de status: Pendente → Confirmado → Em Andamento → Concluído
+- ✅ Sugestão de reagendamento para clientes
+- ✅ Marcar "não compareceu" (afeta reputação)
+- ✅ Configurações personalizáveis
 
-### ✅ Sistema de Disponibilidade Inteligente
-- Verificação automática de horários disponíveis
-- Respeita horário de funcionamento configurável
-- Controle de capacidade (quantidade de carros simultâneos)
-- Sugestão de horários alternativos quando não há disponibilidade
-- Prevenção de conflitos e sobreposições
+### ⚙️ Sistema
+- ✅ Verificação inteligente de disponibilidade
+- ✅ Controle de capacidade (boxes simultâneos)
+- ✅ Tolerância de 15 minutos entre agendamentos
+- ✅ Grupos de serviços mutuamente exclusivos
+- ✅ Sistema de reputação configurável
+- ✅ Loading states em todos os botões (anti-spam)
 
-### ✅ Configurações Personalizáveis
-- Horário de abertura e fechamento
-- Intervalo entre slots (ex: 15, 30 minutos)
-- Capacidade máxima de atendimentos simultâneos
-- Fuso horário configurável
-
-## 📁 Estrutura do Projeto
-
-```
-agendamento-estetica-automotiva/
-├── app/                          # Páginas e rotas do Next.js
-│   ├── agenda/                   # Visualização da agenda diária
-│   ├── agendamentos/novo/        # Formulário de novo agendamento
-│   ├── clientes/                 # Listagem e detalhes de clientes
-│   ├── servicos/                 # CRUD de serviços
-│   ├── configuracoes/            # Configurações do sistema
-│   ├── api/                      # Rotas da API
-│   │   ├── appointments/         # Endpoints de agendamentos
-│   │   ├── customers/            # Endpoints de clientes
-│   │   ├── cars/                 # Endpoints de carros
-│   │   ├── services/             # Endpoints de serviços
-│   │   └── settings/             # Endpoints de configurações
-│   ├── layout.tsx                # Layout principal
-│   └── page.tsx                  # Página inicial (redirect para /agenda)
-├── components/                   # Componentes reutilizáveis
-│   └── ui/                       # Componentes de UI
-│       ├── Button.tsx
-│       ├── Input.tsx
-│       ├── Select.tsx
-│       ├── Textarea.tsx
-│       ├── Card.tsx
-│       ├── Modal.tsx
-│       ├── Alert.tsx
-│       ├── Badge.tsx
-│       └── Loading.tsx
-├── lib/                          # Bibliotecas e utilitários
-│   ├── db.ts                     # Cliente Prisma
-│   ├── availability.ts           # Lógica de disponibilidade
-│   └── types.ts                  # Tipos TypeScript
-├── prisma/
-│   ├── schema.prisma             # Schema do banco de dados
-│   └── init.sql                  # SQL inicial (opcional)
-├── .env.example                  # Exemplo de variáveis de ambiente
-├── package.json
-├── tsconfig.json
-├── tailwind.config.ts
-└── next.config.js
-```
+---
 
 ## 🔧 Instalação e Configuração
 
-### 1. Clonar o projeto
+### 1. Clonar e instalar dependências
 
 ```bash
+git clone <repo-url>
 cd agendamento-estetica-automotiva
-```
-
-### 2. Instalar dependências
-
-```bash
 npm install
 ```
 
-### 3. Configurar variáveis de ambiente
+### 2. Configurar variáveis de ambiente
 
-Crie um arquivo `.env` na raiz do projeto baseado no `.env.example`:
+Crie um arquivo `.env`:
 
 ```env
-# Database URL (PostgreSQL)
-# Exemplo para Supabase:
-DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres"
-
-# Exemplo para Railway:
-DATABASE_URL="postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/railway"
-
-# Exemplo local:
-DATABASE_URL="postgresql://postgres:password@localhost:5432/estetica_automotiva"
-
-# Timezone da aplicação
-NEXT_PUBLIC_TIMEZONE="America/Sao_Paulo"
+DATABASE_URL="postgresql://usuario:senha@localhost:5432/mk_estetica_automotiva"
+JWT_SECRET="sua-chave-secreta-super-segura-aqui"
 ```
 
-### 4. Configurar o banco de dados
-
-#### Opção A: Usando Prisma Migrate (Recomendado para desenvolvimento)
+### 3. Configurar o banco de dados
 
 ```bash
-# Gerar o Prisma Client
+# Criar tabelas
+npx prisma migrate dev
+
+# Gerar Prisma Client
 npx prisma generate
 
-# Criar as tabelas no banco
-npx prisma db push
-
-# Ou usar migrations
-npx prisma migrate dev --name init
+# Popular com dados de exemplo (opcional)
+npx prisma db seed
 ```
 
-#### Opção B: Executar SQL diretamente (Produção)
-
-Se preferir, você pode executar o arquivo `prisma/init.sql` diretamente no seu banco PostgreSQL via Supabase, Railway ou outro cliente SQL.
-
-### 5. (Opcional) Adicionar dados de exemplo
-
-Você pode usar o Prisma Studio para adicionar dados manualmente:
-
-```bash
-npx prisma studio
-```
-
-Ou criar um arquivo `prisma/seed.ts` para popular o banco automaticamente.
-
-### 6. Rodar o projeto
+### 4. Rodar o projeto
 
 ```bash
 npm run dev
@@ -160,203 +109,399 @@ npm run dev
 
 Acesse: `http://localhost:3000`
 
-## 🗃️ Modelagem do Banco de Dados
+### Credenciais padrão (seed)
 
-### Tabelas Principais
-
-**services** - Serviços oferecidos
-- `id`, `name`, `description`, `duration_minutes`, `price`, `is_active`
-
-**customers** - Clientes
-- `id`, `name`, `phone`, `notes`
-
-**cars** - Veículos dos clientes
-- `id`, `customer_id` (FK), `plate`, `model`, `color`, `notes`
-
-**appointments** - Agendamentos
-- `id`, `customer_id` (FK), `car_id` (FK), `start_datetime`, `end_datetime`, `status`, `total_price`, `notes`
-
-**appointment_services** - Relação N:N entre agendamentos e serviços
-- `id`, `appointment_id` (FK), `service_id` (FK), `price`
-
-**settings** - Configurações da agenda (único registro)
-- `id`, `opening_time_weekday`, `closing_time_weekday`, `slot_interval_minutes`, `max_cars_per_slot`, `timezone`
-
-### Status de Agendamento
-
-- `SCHEDULED` - Agendado
-- `IN_PROGRESS` - Em andamento
-- `COMPLETED` - Concluído
-- `CANCELED` - Cancelado
-- `NO_SHOW` - Cliente não compareceu
-
-## 🌐 Deploy
-
-### Deploy na Vercel (Recomendado)
-
-1. Faça push do código para um repositório Git (GitHub, GitLab, Bitbucket)
-
-2. Acesse [vercel.com](https://vercel.com) e importe o projeto
-
-3. Configure as variáveis de ambiente:
-   - `DATABASE_URL`
-   - `NEXT_PUBLIC_TIMEZONE`
-
-4. Deploy automático! A Vercel vai:
-   - Instalar as dependências
-   - Executar `prisma generate` (via postinstall)
-   - Fazer o build do Next.js
-   - Publicar
-
-### Configurar Banco de Dados
-
-#### Opção 1: Supabase (Gratuito)
-
-1. Crie uma conta em [supabase.com](https://supabase.com)
-2. Crie um novo projeto
-3. Vá em Settings → Database
-4. Copie a Connection String (modo "Session")
-5. Use no `DATABASE_URL`
-
-#### Opção 2: Railway (Gratuito com limitações)
-
-1. Crie uma conta em [railway.app](https://railway.app)
-2. Crie um novo projeto e adicione PostgreSQL
-3. Copie a Database URL
-4. Use no `DATABASE_URL`
-
-### Executar Migrations em Produção
-
-Após configurar o banco, execute as migrations:
-
-```bash
-# Localmente, apontando para o banco de produção
-npx prisma db push
-
-# Ou via Vercel CLI
-vercel env pull .env.production
-npx prisma db push
-```
-
-## 📡 API Endpoints
-
-### Agendamentos
-
-- `GET /api/appointments?date=YYYY-MM-DD` - Listar agendamentos por data
-- `POST /api/appointments` - Criar agendamento
-- `GET /api/appointments/:id` - Buscar agendamento
-- `PATCH /api/appointments/:id` - Atualizar agendamento/status
-- `DELETE /api/appointments/:id` - Deletar agendamento
-- `POST /api/appointments/availability` - Verificar disponibilidade
-
-### Clientes
-
-- `GET /api/customers?search=termo` - Listar/buscar clientes
-- `POST /api/customers` - Criar cliente
-- `GET /api/customers/:id` - Buscar cliente com histórico
-- `PATCH /api/customers/:id` - Atualizar cliente
-- `DELETE /api/customers/:id` - Deletar cliente
-
-### Carros
-
-- `GET /api/cars?customerId=id` - Listar carros
-- `POST /api/cars` - Criar carro
-- `GET /api/cars/:id` - Buscar carro
-- `PATCH /api/cars/:id` - Atualizar carro
-- `DELETE /api/cars/:id` - Deletar carro
-
-### Serviços
-
-- `GET /api/services?activeOnly=true` - Listar serviços
-- `POST /api/services` - Criar serviço
-- `GET /api/services/:id` - Buscar serviço
-- `PATCH /api/services/:id` - Atualizar serviço
-- `DELETE /api/services/:id` - Deletar/desativar serviço
-
-### Configurações
-
-- `GET /api/settings` - Buscar configurações
-- `PATCH /api/settings` - Atualizar configurações
-
-## 🎯 Regras de Negócio
-
-### Disponibilidade de Horários
-
-1. **Horário de Funcionamento**: Agendamentos só podem ser criados dentro do horário configurado (ex: 08:00 - 18:00)
-
-2. **Intervalo de Slots**: Horários disponíveis são gerados conforme o intervalo configurado (ex: 15 em 15 minutos)
-
-3. **Capacidade**: Respeita o número máximo de carros que podem ser atendidos simultaneamente
-
-4. **Duração**: Calcula automaticamente a duração total somando todos os serviços selecionados
-
-5. **Conflitos**: Não permite criar agendamentos que se sobrepõem além da capacidade
-
-6. **Horário Passado**: Não permite agendar em datas/horários passados
-
-### Status dos Agendamentos
-
-- Novos agendamentos começam com status `SCHEDULED`
-- Podem ser movidos para `IN_PROGRESS` quando o serviço iniciar
-- Devem ser finalizados como `COMPLETED`
-- Podem ser `CANCELED` a qualquer momento
-- Se o cliente não comparecer, marcar como `NO_SHOW`
-
-## 🛠️ Scripts Disponíveis
-
-```bash
-# Desenvolvimento
-npm run dev              # Iniciar servidor de desenvolvimento
-
-# Build
-npm run build            # Criar build de produção
-npm run start            # Iniciar servidor de produção
-
-# Prisma
-npx prisma generate      # Gerar Prisma Client
-npx prisma db push       # Aplicar schema ao banco
-npx prisma migrate dev   # Criar migration
-npx prisma studio        # Abrir interface visual do banco
-
-# Lint
-npm run lint             # Executar ESLint
-```
-
-## 📝 Notas e Considerações
-
-### Assumido no Desenvolvimento
-
-- Sistema considera apenas dias úteis (pode ser expandido para incluir sábados)
-- Horário de funcionamento é único (pode ser expandido para horários diferentes por dia)
-- Timezone configurável, mas assumido como America/Sao_Paulo por padrão
-- Preços são copiados no momento do agendamento (histórico de valores)
-- Serviços podem ser desativados mas não excluídos se tiverem agendamentos
-
-### Melhorias Futuras Sugeridas
-
-- [ ] Sistema de autenticação (usuários/admin)
-- [ ] Notificações por WhatsApp/SMS
-- [ ] Relatórios e dashboards
-- [ ] Exportação de dados (PDF, Excel)
-- [ ] Foto dos veículos
-- [ ] Notas/avaliações dos clientes
-- [ ] Sistema de lembretes automáticos
-- [ ] Integração com calendário (Google Calendar)
-- [ ] Modo escuro
-- [ ] PWA (Progressive Web App)
-
-## 📄 Licença
-
-Este projeto foi desenvolvido como MVP e está disponível para uso e modificação.
-
-## 🤝 Suporte
-
-Para dúvidas ou problemas:
-1. Verifique a documentação acima
-2. Revise os logs do servidor (`npm run dev`)
-3. Verifique as configurações do banco de dados
-4. Confirme que todas as variáveis de ambiente estão corretas
+| Tipo | Telefone | Senha |
+|------|----------|-------|
+| **Admin** | 11999999999 | admin123 |
+| **Cliente** | 11988887777 | cliente123 |
 
 ---
 
-**Desenvolvido com Next.js 14, TypeScript e Prisma** 🚀
+## 📁 Estrutura do Projeto
+
+```
+├── app/
+│   ├── api/                    # Rotas da API
+│   │   ├── appointments/       # Agendamentos
+│   │   ├── auth/               # Autenticação (login, register, me)
+│   │   ├── availability/       # Verificação de horários
+│   │   ├── cars/               # Veículos
+│   │   ├── customers/          # Clientes
+│   │   ├── services/           # Serviços
+│   │   └── settings/           # Configurações
+│   │       └── reputation/     # Config de reputação (público)
+│   │
+│   ├── agenda/                 # Agenda do admin
+│   ├── clientes/               # CRUD de clientes (admin)
+│   ├── servicos/               # CRUD de serviços (admin)
+│   ├── configuracoes/          # Configurações (admin)
+│   ├── dashboard/              # Dashboard (admin)
+│   │
+│   ├── cliente/                # Área do cliente
+│   │   ├── page.tsx            # Meus agendamentos
+│   │   ├── novo/               # Novo agendamento
+│   │   └── perfil/             # Meu perfil
+│   │
+│   ├── login/                  # Login
+│   ├── cadastro/               # Cadastro de cliente
+│   └── layout.tsx              # Layout principal
+│
+├── components/
+│   ├── ui/                     # Componentes UI reutilizáveis
+│   │   ├── Alert.tsx
+│   │   ├── Badge.tsx
+│   │   ├── Button.tsx          # Com loading state
+│   │   ├── Card.tsx
+│   │   ├── Input.tsx
+│   │   ├── Loading.tsx
+│   │   ├── Modal.tsx
+│   │   ├── Select.tsx
+│   │   ├── Skeleton.tsx
+│   │   └── Textarea.tsx
+│   ├── Navigation.tsx          # Navbar
+│   └── Sidebar.tsx             # Menu lateral
+│
+├── lib/
+│   ├── AuthContext.tsx         # Contexto de autenticação
+│   ├── availability.ts         # Lógica de disponibilidade
+│   ├── db.ts                   # Cliente Prisma
+│   └── hooks/
+│       └── useFetch.ts         # Hook SWR customizado
+│
+└── prisma/
+    ├── schema.prisma           # Schema do banco
+    ├── seed.ts                 # Dados de exemplo
+    └── migrations/             # Migrations
+```
+
+---
+
+## 🔐 Sistema de Autenticação
+
+### Fluxo de Login
+
+```
+Cliente/Admin → Login (telefone + senha) → JWT Cookie → Área correspondente
+```
+
+### Rotas protegidas
+
+| Rota | Acesso |
+|------|--------|
+| `/dashboard`, `/agenda`, `/clientes`, `/servicos`, `/configuracoes` | Admin |
+| `/cliente`, `/cliente/novo`, `/cliente/perfil` | Cliente |
+| `/login`, `/cadastro` | Público |
+
+### Cookies
+
+- `auth-token`: JWT com dados do usuário (id, name, phone, isAdmin)
+- Expiração: 7 dias
+
+---
+
+## 📅 Sistema de Confirmação de Agendamentos
+
+### Fluxo completo
+
+```
+1. PENDING              → Cliente agenda
+2. CONFIRMED_BY_CLIENT  → Cliente confirma 24h antes
+3. CONFIRMED            → Estética confirma
+4. IN_PROGRESS          → Serviço em andamento
+5. COMPLETED            → Serviço concluído
+```
+
+### Status possíveis
+
+| Status | Descrição | Cor |
+|--------|-----------|-----|
+| `PENDING` | Aguardando confirmação do cliente | Cinza |
+| `CONFIRMED_BY_CLIENT` | Cliente confirmou, aguarda estética | Azul |
+| `CONFIRMED` | Confirmado por ambos ✓ | Verde |
+| `RESCHEDULED` | Estética sugeriu novo horário | Laranja |
+| `IN_PROGRESS` | Em andamento | Amarelo |
+| `COMPLETED` | Concluído | Verde |
+| `CANCELED` | Cancelado | Vermelho |
+| `NO_SHOW` | Cliente não compareceu | Vermelho |
+
+### Regras de confirmação
+
+- Cliente só pode confirmar **24 horas antes** do agendamento
+- Se não confirmar a tempo, agendamento pode ser cancelado
+- Estética pode sugerir reagendamento (RESCHEDULED)
+- Cliente pode aceitar ou recusar a sugestão
+
+---
+
+## ⭐ Sistema de Reputação do Cliente
+
+### Como funciona
+
+Cada cliente tem uma **nota de 0 a 5 estrelas** que afeta sua capacidade de agendar.
+
+### Regras padrão (configuráveis)
+
+| Evento | Efeito |
+|--------|--------|
+| **Cliente novo** | Começa com nota **5.0** |
+| **Não compareceu (NO_SHOW)** | Nota vai para **2.5** |
+| **Compareceu (nota ≥ 3)** | Ganha **+0.2** (máx 5.0) |
+| **Compareceu (nota < 3)** | Volta para **5.0** (reabilitação) |
+
+### Penalidade
+
+- **Nota < 3.0** → Exige pagamento antecipado de **50%** para agendar
+
+### Configurações disponíveis (tela de Configurações)
+
+| Config | Padrão | Descrição |
+|--------|--------|-----------|
+| `reputationEnabled` | `true` | Ativar/desativar sistema |
+| `reputationNoShowPenalty` | `2.5` | Nota após uma falta |
+| `reputationMinForAdvance` | `3.0` | Nota mínima para não pagar antecipado |
+| `reputationAdvancePercent` | `50` | % de pagamento antecipado |
+| `reputationRecoveryOnShow` | `true` | Se comparecer, volta para 5.0 |
+
+### Exemplo de fluxo
+
+```
+João (nota 5.0) → Falta → Nota 2.5 → Precisa pagar 50% antecipado
+                                   → Paga e comparece → Nota volta para 5.0!
+```
+
+---
+
+## 🔗 Grupos de Serviços (Exclusividade Mútua)
+
+### O que é?
+
+Serviços do mesmo **grupo** são mutuamente exclusivos - o cliente só pode escolher um.
+
+### Exemplo
+
+| Serviço | Grupo |
+|---------|-------|
+| Lavagem Simples | `lavagem` |
+| Lavagem Completa | `lavagem` |
+| Lavagem Premium | `lavagem` |
+| Polimento Básico | `polimento` |
+| Polimento Técnico | `polimento` |
+| Cristalização | `polimento` |
+| Higienização Bancos | `null` (sem grupo) |
+
+### Comportamento
+
+- Ao selecionar "Lavagem Completa", "Lavagem Simples" e "Lavagem Premium" ficam **bloqueados**
+- Serviços sem grupo podem ser combinados livremente
+- Visual: serviços bloqueados ficam esmaecidos com aviso
+
+---
+
+## 📡 API Endpoints
+
+### Autenticação
+
+```
+POST   /api/auth/login      # Login
+POST   /api/auth/register   # Cadastro de cliente
+GET    /api/auth/me         # Dados do usuário logado
+POST   /api/auth/logout     # Logout
+```
+
+### Agendamentos
+
+```
+GET    /api/appointments?date=YYYY-MM-DD   # Listar por data
+POST   /api/appointments                    # Criar
+GET    /api/appointments/:id                # Buscar
+PATCH  /api/appointments/:id                # Atualizar status
+DELETE /api/appointments/:id                # Deletar
+```
+
+### Disponibilidade
+
+```
+GET    /api/availability?date=YYYY-MM-DD&serviceIds=id1,id2
+```
+
+### Clientes
+
+```
+GET    /api/customers?search=termo    # Listar/buscar
+POST   /api/customers                  # Criar
+GET    /api/customers/:id              # Buscar com histórico
+PATCH  /api/customers/:id              # Atualizar
+DELETE /api/customers/:id              # Deletar
+```
+
+### Carros
+
+```
+GET    /api/cars?customerId=id    # Listar
+POST   /api/cars                   # Criar
+PATCH  /api/cars/:id               # Atualizar
+DELETE /api/cars/:id               # Deletar
+```
+
+### Serviços
+
+```
+GET    /api/services              # Listar ativos
+POST   /api/services              # Criar
+PATCH  /api/services/:id          # Atualizar
+DELETE /api/services/:id          # Desativar
+```
+
+### Configurações
+
+```
+GET    /api/settings              # Buscar todas
+PATCH  /api/settings              # Atualizar
+GET    /api/settings/reputation   # Config de reputação (público)
+```
+
+---
+
+## ⚙️ Configurações
+
+### Horário e Capacidade
+
+| Config | Descrição | Padrão |
+|--------|-----------|--------|
+| `openingTimeWeekday` | Horário de abertura | 08:00 |
+| `closingTimeWeekday` | Horário de fechamento | 18:00 |
+| `slotIntervalMinutes` | Intervalo entre slots | 15 |
+| `maxCarsPerSlot` | Boxes simultâneos | 2 |
+| `timezone` | Fuso horário | America/Sao_Paulo |
+
+### Reputação
+
+| Config | Descrição | Padrão |
+|--------|-----------|--------|
+| `reputationEnabled` | Sistema ativo | true |
+| `reputationNoShowPenalty` | Nota após falta | 2.5 |
+| `reputationMinForAdvance` | Nota mín. sem antecipado | 3.0 |
+| `reputationAdvancePercent` | % antecipado | 50 |
+| `reputationRecoveryOnShow` | Reabilita ao comparecer | true |
+
+---
+
+## 🗃️ Modelagem do Banco
+
+### Diagrama simplificado
+
+```
+Customer (1) ──────< (N) Car
+    │                     │
+    │                     │
+    └──< Appointment >────┘
+              │
+              │
+              └──< AppointmentService >── Service
+                                            │
+                                            └── serviceGroup
+```
+
+### Tabelas principais
+
+**customers**
+- `id`, `name`, `phone`, `email`, `password`, `isAdmin`
+- `rating`, `noShowCount`, `completedCount`
+
+**cars**
+- `id`, `customerId`, `plate`, `model`, `color`
+
+**services**
+- `id`, `name`, `durationMinutes`, `price`, `isActive`, `serviceGroup`
+
+**appointments**
+- `id`, `customerId`, `carId`, `startDatetime`, `endDatetime`
+- `status`, `totalPrice`, `notes`, `businessNotes`
+- `suggestedDatetime`, `confirmedByClientAt`, `confirmedByBusinessAt`
+
+**appointment_services**
+- `id`, `appointmentId`, `serviceId`, `price`
+
+**settings**
+- Configurações de horário, capacidade e reputação
+
+---
+
+## 🌐 Deploy
+
+### Vercel (Recomendado)
+
+1. Push para GitHub
+2. Importar na Vercel
+3. Configurar variáveis de ambiente:
+   - `DATABASE_URL`
+   - `JWT_SECRET`
+4. Deploy!
+
+### Banco de Dados
+
+**Supabase** (gratuito)
+```
+DATABASE_URL="postgresql://postgres:[PASSWORD]@db.[PROJECT].supabase.co:5432/postgres"
+```
+
+**Railway** (gratuito com limite)
+```
+DATABASE_URL="postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/railway"
+```
+
+### Migrations em produção
+
+```bash
+npx prisma migrate deploy
+```
+
+---
+
+## 🛠️ Scripts
+
+```bash
+npm run dev          # Desenvolvimento
+npm run build        # Build produção
+npm run start        # Iniciar produção
+npm run lint         # Lint
+
+npx prisma generate  # Gerar client
+npx prisma migrate dev --name nome   # Nova migration
+npx prisma db push   # Push sem migration
+npx prisma studio    # Interface visual
+npx prisma db seed   # Popular dados
+```
+
+---
+
+## 📝 Notas Técnicas
+
+### Loading States
+
+Todos os botões de ação possuem estado de loading para prevenir cliques duplicados:
+- Botão fica desabilitado durante a ação
+- Texto muda para indicar carregamento
+- Ícone de spinner aparece
+
+### Tolerância de horários
+
+O sistema adiciona **15 minutos de tolerância** entre agendamentos para atrasos.
+
+### Cache com SWR
+
+Dados são cacheados e revalidados automaticamente, proporcionando:
+- Respostas instantâneas do cache
+- Atualização em background
+- Revalidação ao focar na aba
+
+---
+
+## 📄 Licença
+
+MIT
+
+---
+
+**Desenvolvido com ❤️ usando Next.js 14, TypeScript e Prisma**

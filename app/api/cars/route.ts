@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { customerId, plate, model, color, notes } = body
+    const { customerId, plate, model, color, notes, year, vehicleType } = body
 
     if (!customerId || !plate || !model) {
       return NextResponse.json(
@@ -66,8 +66,10 @@ export async function POST(request: NextRequest) {
         customerId,
         plate,
         model,
-        color,
-        notes
+        ...(color && { color }),
+        ...(notes && { notes }),
+        ...(year && { year }),
+        ...(vehicleType && { vehicleType })
       },
       include: {
         customer: true
