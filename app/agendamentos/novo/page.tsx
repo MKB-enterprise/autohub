@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { format } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -12,6 +13,7 @@ import { Card } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Alert'
 import { Loading } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
+import { ServiceSelector } from '@/components/ServiceSelector'
 
 interface Customer {
   id: string
@@ -33,6 +35,7 @@ interface Service {
   description: string | null
   durationMinutes: number
   price: number
+  serviceGroup?: string | null
 }
 
 interface AppointmentFormData {
@@ -46,6 +49,8 @@ interface AppointmentFormData {
 
 export default function NovoAgendamentoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user } = useAuth()
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<AppointmentFormData>()
 
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -70,6 +75,34 @@ export default function NovoAgendamentoPage() {
   useEffect(() => {
     loadInitialData()
   }, [])
+
+  // Se o user é um cliente (não-admin), prefill com seu próprio ID
+  useEffect(() => {
+    if (user && !user.isAdmin && customers.length > 0) {
+      setValue('customerId', user.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, customers])
+
+  // Prefill date/time from query params (from public selection)
+  useEffect(() => {
+    const d = searchParams.get('date')
+    const t = searchParams.get('time')
+    if (d) setValue('date', d)
+    if (t) setValue('time', t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // After services load, preselect services from ?services=id1,id2
+  useEffect(() => {
+    const svcs = searchParams.get('services')
+    if (!svcs || services.length === 0) return
+    const ids = svcs.split(',').filter(Boolean)
+    // Only keep valid ones
+    const valid = ids.filter(id => services.some(s => s.id === id))
+    if (valid.length) setSelectedServices(valid)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services])
 
   useEffect(() => {
     if (selectedCustomerId) {
@@ -162,12 +195,27 @@ export default function NovoAgendamentoPage() {
   }
 
   function toggleService(serviceId: string) {
+    const svc = services.find(s => s.id === serviceId)
+    const group = svc?.serviceGroup || null
+
     setSelectedServices(prev => {
-      if (prev.includes(serviceId)) {
+      const already = prev.includes(serviceId)
+      if (already) {
+        // Desmarca o serviço
         return prev.filter(id => id !== serviceId)
-      } else {
-        return [...prev, serviceId]
       }
+
+      // Se tem grupo, remove outros do mesmo grupo
+      if (group) {
+        const filtered = prev.filter(id => {
+          const s = services.find(x => x.id === id)
+          return (s?.serviceGroup || null) !== group
+        })
+        return [...filtered, serviceId]
+      }
+
+      // Sem grupo: só adiciona
+      return [...prev, serviceId]
     })
   }
 
@@ -319,21 +367,30 @@ export default function NovoAgendamentoPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Card title="Dados do Cliente">
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Select
-                  label="Cliente"
-                  {...register('customerId', { required: 'Cliente é obrigatório' })}
-                  options={customers.map(c => ({ value: c.id, label: `${c.name} - ${c.phone}` }))}
-                  error={errors.customerId?.message}
-                />
+            {user?.isAdmin ? (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select
+                    label="Cliente"
+                    {...register('customerId', { required: 'Cliente é obrigatório' })}
+                    options={customers.map(c => ({ value: c.id, label: `${c.name} - ${c.phone}` }))}
+                    error={errors.customerId?.message}
+                  />
+                </div>
+                <div className="pt-6">
+                  <Button type="button" onClick={() => setShowNewCustomerModal(true)} size="sm">
+                    + Novo Cliente
+                  </Button>
+                </div>
               </div>
-              <div className="pt-6">
-                <Button type="button" onClick={() => setShowNewCustomerModal(true)} size="sm">
-                  + Novo Cliente
-                </Button>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Cliente</label>
+                <div className="p-3 bg-gray-800/50 border border-gray-700 rounded text-white">
+                  {user?.name} ({user?.phone})
+                </div>
               </div>
-            </div>
+            )}
 
             {selectedCustomerId && (
               <div className="flex gap-2">
@@ -356,37 +413,14 @@ export default function NovoAgendamentoPage() {
         </Card>
 
         <Card title="Serviços">
-          <div className="space-y-3">
-            {services.map(service => (
-              <label
-                key={service.id}
-                className="flex items-start gap-3 p-3 border border-gray-700 rounded hover:bg-gray-800/50 hover:border-cyan-500/30 cursor-pointer transition-colors bg-gray-900/50"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedServices.includes(service.id)}
-                  onChange={() => toggleService(service.id)}
-                  className="mt-1 accent-cyan-500"
-                />
-                <div className="flex-1">
-                  <div className="font-medium text-white">{service.name}</div>
-                  {service.description && (
-                    <div className="text-sm text-gray-500">{service.description}</div>
-                  )}
-                  <div className="text-sm text-gray-400 mt-1">
-                    {service.durationMinutes} min - R$ {Number(service.price).toFixed(2)}
-                  </div>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {selectedServices.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-800/50 border border-cyan-500/30 rounded-lg">
-              <p className="text-lg font-semibold text-cyan-400">Total: R$ {totalPrice.toFixed(2)}</p>
-              <p className="text-sm text-gray-400">Duração estimada: {totalDuration} minutos</p>
-            </div>
-          )}
+          <ServiceSelector
+            services={services}
+            selected={selectedServices}
+            onChange={setSelectedServices}
+            totalDuration={totalDuration}
+            totalPrice={totalPrice}
+            showHint={false}
+          />
         </Card>
 
         <Card title="Data e Horário">
@@ -455,25 +489,27 @@ export default function NovoAgendamentoPage() {
       </form>
 
       {/* Modal Novo Cliente */}
-      <Modal
-        isOpen={showNewCustomerModal}
-        onClose={() => setShowNewCustomerModal(false)}
-        title="Novo Cliente"
-      >
-        <form onSubmit={createCustomer} className="space-y-4">
-          <Input label="Nome" name="name" required />
-          <Input label="Telefone" name="phone" type="tel" required />
-          <Textarea label="Observações" name="notes" rows={3} />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={savingCustomer}>
-              {savingCustomer ? 'Salvando...' : 'Salvar'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewCustomerModal(false)} disabled={savingCustomer}>
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {user?.isAdmin && (
+        <Modal
+          isOpen={showNewCustomerModal}
+          onClose={() => setShowNewCustomerModal(false)}
+          title="Novo Cliente"
+        >
+          <form onSubmit={createCustomer} className="space-y-4">
+            <Input label="Nome" name="name" required />
+            <Input label="Telefone" name="phone" type="tel" required />
+            <Textarea label="Observações" name="notes" rows={3} />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={savingCustomer}>
+                {savingCustomer ? 'Salvando...' : 'Salvar'}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setShowNewCustomerModal(false)} disabled={savingCustomer}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Modal Novo Carro */}
       <Modal

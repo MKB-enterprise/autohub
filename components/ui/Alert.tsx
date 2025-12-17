@@ -15,7 +15,7 @@ export function Alert({ type, message, onClose }: AlertProps) {
     success: 'bg-green-900/50 text-green-400 border-green-700',
     error: 'bg-red-900/50 text-red-400 border-red-700',
     warning: 'bg-yellow-900/50 text-yellow-400 border-yellow-700',
-    info: 'bg-cyan-900/50 text-cyan-400 border-cyan-700'
+    info: 'bg-blue-900/50 text-blue-400 border-blue-700'
   }
 
   return (

@@ -263,6 +263,79 @@ export async function getAvailableSlots(
 }
 
 /**
+ * Variante de disponibilidade recebendo a duração total diretamente (sem services)
+ */
+export async function getAvailableSlotsForDuration(
+  date: Date,
+  totalDuration: number
+): Promise<Date[]> {
+  const settings = await prisma.settings.findFirst()
+  if (!settings) {
+    throw new Error('Configurações não encontradas. Execute a seed do banco.')
+  }
+
+  if (!totalDuration || totalDuration <= 0) {
+    return []
+  }
+
+  const timezone = settings.timezone
+  const zonedDate = utcToZonedTime(date, timezone)
+  const dayStart = startOfDay(zonedDate)
+
+  // Converter horários de abertura/fechamento
+  const openingTime = parseTimeToDate(settings.openingTimeWeekday, dayStart, timezone)
+  const closingTime = parseTimeToDate(settings.closingTimeWeekday, dayStart, timezone)
+
+  // Gerar todos os slots possíveis do dia (a cada 30 minutos)
+  const allSlots: Date[] = []
+  let currentSlot = openingTime
+  
+  while (isBefore(currentSlot, closingTime)) {
+    // Calcular horário real de término (considerando pausa de almoço se necessário)
+    const realEndTime = calculateRealEndTime(currentSlot, totalDuration, timezone)
+    
+    // Verificar se o slot + duração total não ultrapassa o horário de fechamento
+    if (isBefore(realEndTime, closingTime) || isEqual(realEndTime, closingTime)) {
+      allSlots.push(currentSlot)
+    }
+    currentSlot = addMinutes(currentSlot, SLOT_INTERVAL_MINUTES)
+  }
+
+  // Buscar agendamentos do dia (excluindo cancelados e no-show)
+  const dayEnd = endOfDay(zonedDate)
+  const existingAppointments = await prisma.appointment.findMany({
+    where: {
+      startDatetime: {
+        gte: zonedTimeToUtc(dayStart, timezone),
+        lte: zonedTimeToUtc(dayEnd, timezone)
+      },
+      status: {
+        notIn: ['CANCELED', 'NO_SHOW']
+      }
+    },
+    select: {
+      startDatetime: true,
+      endDatetime: true
+    }
+  })
+
+  const now = new Date()
+  const availableSlots = allSlots.filter(slot => {
+    if (isBefore(slot, now)) return false
+    if (startsInLunchBreak(slot, timezone)) return false
+
+    const realEndTime = calculateRealEndTime(slot, totalDuration, timezone)
+    const overlappingAppointments = existingAppointments.filter((appointment: { startDatetime: Date; endDatetime: Date }) =>
+      hasOverlap(slot, realEndTime, appointment.startDatetime, appointment.endDatetime)
+    )
+
+    return overlappingAppointments.length < settings.maxCarsPerSlot
+  })
+
+  return availableSlots
+}
+
+/**
  * Sugere próximos dias/horários disponíveis quando a data escolhida não tem slots
  */
 export async function suggestNextAvailableSlots(

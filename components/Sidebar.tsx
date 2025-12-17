@@ -49,7 +49,7 @@ export default function Sidebar() {
                   href={item.href}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all whitespace-nowrap text-sm ${
                     isActive
-                      ? 'bg-cyan-600 text-white'
+                      ? 'bg-blue-600 text-white'
                       : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                   }`}
                 >
@@ -65,7 +65,7 @@ export default function Sidebar() {
       {/* User Info */}
       <div className="p-4 border-t border-gray-800">
         <div className="flex items-center gap-3 mb-3 px-2">
-          <div className="w-8 h-8 rounded-full bg-cyan-600 flex items-center justify-center text-white text-sm">
+          <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm">
             {user.name.charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">

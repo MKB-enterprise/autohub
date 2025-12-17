@@ -108,12 +108,12 @@ export default function DashboardPage() {
               <p className="text-gray-400 text-sm">Agendamentos</p>
               <p className="text-gray-500 text-xs">Hoje</p>
               <p className="text-4xl font-bold text-white mt-2">{stats?.appointmentsToday || 0}</p>
-              <p className="text-cyan-400 text-sm mt-1">
+              <p className="text-blue-400 text-sm mt-1">
                 {(stats?.appointmentsToday || 0) - (stats?.appointmentsYesterday || 0) >= 0 ? '+' : ''}
                 {(stats?.appointmentsToday || 0) - (stats?.appointmentsYesterday || 0)} vs ontem
               </p>
             </div>
-            <div className="text-cyan-500 text-3xl opacity-50">📅</div>
+            <div className="text-blue-500 text-3xl opacity-50">📅</div>
           </div>
         </div>
 
@@ -123,11 +123,11 @@ export default function DashboardPage() {
             <div>
               <p className="text-gray-400 text-sm">Clientes Ativos</p>
               <p className="text-4xl font-bold text-white mt-2">{stats?.totalClients || 0}</p>
-              <p className="text-cyan-400 text-sm mt-1">
+              <p className="text-blue-400 text-sm mt-1">
                 +{stats?.clientsGrowth || 0}% este mês
               </p>
             </div>
-            <div className="text-cyan-500 text-3xl opacity-50">👥</div>
+            <div className="text-blue-500 text-3xl opacity-50">👥</div>
           </div>
         </div>
 
@@ -138,7 +138,7 @@ export default function DashboardPage() {
               <p className="text-gray-400 text-sm">Carros em Serviço</p>
               <p className="text-4xl font-bold text-white mt-2">{stats?.carsInService || 0}</p>
             </div>
-            <div className="text-cyan-500 text-3xl opacity-50">🚗</div>
+            <div className="text-blue-500 text-3xl opacity-50">🚗</div>
           </div>
         </div>
 
@@ -150,11 +150,11 @@ export default function DashboardPage() {
               <p className="text-4xl font-bold text-white mt-2">
                 R$ {formatRevenue(stats?.revenueToday || 0)}
               </p>
-              <p className="text-cyan-400 text-sm mt-1">
+              <p className="text-blue-400 text-sm mt-1">
                 {(stats?.revenueAverage || 0) >= 0 ? '+' : ''}{stats?.revenueAverage || 0}% vs média
               </p>
             </div>
-            <div className="text-cyan-500 text-3xl opacity-50">💰</div>
+            <div className="text-blue-500 text-3xl opacity-50">💰</div>
           </div>
         </div>
       </div>

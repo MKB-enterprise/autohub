@@ -36,9 +36,9 @@ const colorMap: Record<string, string> = {
 }
 
 function getCarColor(color?: string | null): string {
-  if (!color) return '#06b6d4'
+  if (!color) return '#2563eb'
   const normalizedColor = color.toLowerCase().trim()
-  return colorMap[normalizedColor] || '#06b6d4'
+  return colorMap[normalizedColor] || '#2563eb'
 }
 
 const VehicleIcons: Record<VehicleType, React.ElementType> = {
@@ -91,12 +91,12 @@ export function CarCard({ id, model, plate, color, vehicleType, isSelected = fal
       className={`
         relative p-5 rounded-2xl cursor-pointer transition-all duration-300
         ${isSelected 
-          ? 'bg-gradient-to-br from-cyan-900/40 to-cyan-800/20 border-2 border-cyan-400 shadow-lg shadow-cyan-500/20' 
-          : 'bg-gradient-to-br from-gray-800/60 to-gray-900/60 border border-gray-700/50 hover:border-cyan-500/40 hover:shadow-lg hover:shadow-cyan-500/10'}
+          ? 'bg-gray-800 border-2 border-blue-500 shadow-lg shadow-blue-500/20' 
+          : 'bg-gray-800/60 border border-gray-700/50 hover:border-blue-500/40 hover:shadow-lg hover:shadow-blue-500/10'}
       `}
     >
       {isSelected && (
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-cyan-500 rounded-full flex items-center justify-center shadow-lg">
+        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
@@ -145,14 +145,14 @@ export function VehicleTypeSelector({ value, onChange }: { value: VehicleType; o
             className={`
               p-3 rounded-xl border-2 transition-all duration-200
               ${isSelected 
-                ? 'bg-cyan-500/20 border-cyan-500 shadow-lg shadow-cyan-500/20' 
+                ? 'bg-blue-500/20 border-blue-500 shadow-lg shadow-blue-500/20' 
                 : 'bg-gray-800/50 border-gray-700 hover:border-gray-500'}
             `}
           >
             <div className="flex justify-center">
-              <VehicleIcon size={36} color={isSelected ? '#06b6d4' : '#6b7280'} />
+              <VehicleIcon size={36} color={isSelected ? '#2563eb' : '#6b7280'} />
             </div>
-            <p className={`text-xs mt-2 font-medium ${isSelected ? 'text-cyan-400' : 'text-gray-400'}`}>
+            <p className={`text-xs mt-2 font-medium ${isSelected ? 'text-blue-400' : 'text-gray-400'}`}>
               {vehicleTypeLabels[type]}
             </p>
           </button>

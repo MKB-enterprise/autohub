@@ -48,12 +48,12 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <Card>
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-lg shadow-cyan-500/30">
+            <div className="inline-flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-black shadow-lg shadow-black/20">
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">Criar Conta</h1>
+            <h1 className="text-4xl font-bold text-white">Criar Conta</h1>
             <p className="text-gray-400 mt-2">Cadastre-se no sistema</p>
           </div>
 
@@ -113,7 +113,7 @@ export default function RegisterPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-400">
               Já tem uma conta?{' '}
-              <Link href="/login" className="text-cyan-400 hover:text-cyan-300 font-semibold transition-colors">
+              <Link href="/login" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
                 Fazer login →
               </Link>
             </p>

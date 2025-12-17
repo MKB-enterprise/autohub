@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Button } from '@/components/ui/Button'
@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { useData } from '@/lib/hooks/useFetch'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/AuthContext'
 
 interface Appointment {
   id: string
@@ -78,6 +80,8 @@ const LUNCH_START_HOUR = 12
 const LUNCH_END_HOUR = 13
 
 export default function AgendaPage() {
+  const router = useRouter()
+  const { user, loading } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -91,9 +95,21 @@ export default function AgendaPage() {
   const [businessNotes, setBusinessNotes] = useState('')
   const [savingReschedule, setSavingReschedule] = useState(false)
 
-  // SWR para cache e revalidação automática
+  // Bloqueio de acesso: apenas admin
+  useEffect(() => {
+    if (loading) return
+    if (!user) {
+      router.replace('/')
+      return
+    }
+    if (!user.isAdmin) {
+      router.replace('/cliente')
+    }
+  }, [user, loading, router])
+
+  // SWR para cache e revalidação automática (só inicia se admin)
   const dateStr = format(currentDate, 'yyyy-MM-dd')
-  const { data: appointments = [], isLoading, mutate } = useData<Appointment[]>(`/api/appointments?date=${dateStr}`)
+  const { data: appointments = [], isLoading, mutate } = useData<Appointment[]>(user?.isAdmin ? `/api/appointments?date=${dateStr}` : null)
 
   const loadAppointments = useCallback(() => {
     mutate()

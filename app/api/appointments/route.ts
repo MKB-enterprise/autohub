@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateAppointmentSlot, calculateTotalPrice } from '@/lib/availability'
+import { requireAdmin, requireAuth } from '@/lib/auth'
 
 // GET /api/appointments - Listar agendamentos
 export async function GET(request: NextRequest) {
   try {
+    // Somente administradores podem listar todos os agendamentos
+    await requireAdmin()
+
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
     const status = searchParams.get('status')
@@ -76,10 +80,17 @@ export async function GET(request: NextRequest) {
 // POST /api/appointments - Criar novo agendamento
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuth()
+
     const body = await request.json()
     const { customerId, carId, startDatetime, serviceIds, notes } = body
 
     console.log('Criando agendamento:', { customerId, carId, startDatetime, serviceIds })
+
+    // Cliente não-admin só pode criar para si mesmo
+    if (!user.isAdmin && customerId !== user.customerId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     // Validações básicas
     if (!customerId || !carId || !startDatetime || !serviceIds || serviceIds.length === 0) {

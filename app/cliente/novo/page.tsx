@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { Loading } from '@/components/ui/Loading'
 import { Alert } from '@/components/ui/Alert'
+import { ServiceSelector } from '@/components/ServiceSelector'
 import { format, parseISO, addMinutes } from 'date-fns'
 
 interface Service {
@@ -152,57 +153,6 @@ export default function NovoAgendamentoPage() {
       console.error('Erro ao carregar horários:', err)
       setAvailableTimes([])
     }
-  }
-
-  function handleServiceToggle(serviceId: string) {
-    const service = services.find(s => s.id === serviceId)
-    if (!service) return
-
-    // Se está desmarcando, simplesmente remove
-    if (selectedServices.includes(serviceId)) {
-      setSelectedServices(prev => prev.filter(id => id !== serviceId))
-      return
-    }
-
-    // Se está marcando, verificar conflito de grupo
-    if (service.serviceGroup) {
-      // Remove qualquer serviço do mesmo grupo antes de adicionar
-      const otherGroupServices = selectedServices.filter(id => {
-        const s = services.find(svc => svc.id === id)
-        return s?.serviceGroup !== service.serviceGroup
-      })
-      setSelectedServices([...otherGroupServices, serviceId])
-    } else {
-      // Serviço sem grupo, adiciona normalmente
-      setSelectedServices(prev => [...prev, serviceId])
-    }
-  }
-
-  // Verificar se um serviço está bloqueado (outro do mesmo grupo já selecionado)
-  function isServiceBlocked(serviceId: string): boolean {
-    const service = services.find(s => s.id === serviceId)
-    if (!service?.serviceGroup) return false
-    
-    // Verifica se outro serviço do mesmo grupo está selecionado
-    return selectedServices.some(selectedId => {
-      if (selectedId === serviceId) return false
-      const selectedService = services.find(s => s.id === selectedId)
-      return selectedService?.serviceGroup === service.serviceGroup
-    })
-  }
-
-  // Obter nome do serviço bloqueante
-  function getBlockingServiceName(serviceId: string): string | null {
-    const service = services.find(s => s.id === serviceId)
-    if (!service?.serviceGroup) return null
-    
-    const blockingId = selectedServices.find(selectedId => {
-      if (selectedId === serviceId) return false
-      const selectedService = services.find(s => s.id === selectedId)
-      return selectedService?.serviceGroup === service.serviceGroup
-    })
-    
-    return blockingId ? services.find(s => s.id === blockingId)?.name || null : null
   }
 
   async function onSubmit(data: FormData) {
@@ -388,66 +338,33 @@ export default function NovoAgendamentoPage() {
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
-          <h2 className="text-xl font-semibold mb-4">Selecione os Serviços</h2>
-          <p className="text-sm text-gray-400 mb-4">
-            💡 Alguns serviços são mutuamente exclusivos - ao selecionar um, outros similares ficam indisponíveis.
-          </p>
-          <div className="space-y-3">
-            {services.map((service) => {
-              const isBlocked = isServiceBlocked(service.id)
-              const blockingName = getBlockingServiceName(service.id)
-              const isSelected = selectedServices.includes(service.id)
-              
-              return (
-                <label 
-                  key={service.id} 
-                  className={`flex items-start gap-3 p-3 border rounded transition-colors ${
-                    isBlocked 
-                      ? 'border-gray-700/50 bg-gray-900/20 opacity-50 cursor-not-allowed' 
-                      : isSelected
-                        ? 'border-cyan-500/50 bg-cyan-500/10 cursor-pointer'
-                        : 'border-gray-700 bg-gray-900/50 cursor-pointer hover:bg-gray-800/50 hover:border-cyan-500/30'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => !isBlocked && handleServiceToggle(service.id)}
-                    disabled={isBlocked}
-                    className="mt-1 accent-cyan-500"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className={`font-medium ${isBlocked ? 'text-gray-500' : 'text-white'}`}>
-                        {service.name}
-                      </p>
-                      {service.serviceGroup && (
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-gray-700/50 text-gray-400">
-                          {service.serviceGroup}
-                        </span>
-                      )}
-                    </div>
-                    <p className={`text-sm ${isBlocked ? 'text-gray-600' : 'text-gray-400'}`}>
-                      {service.durationMinutes} min - R$ {Number(service.price).toFixed(2)}
-                    </p>
-                    {isBlocked && blockingName && (
-                      <p className="text-xs text-amber-500 mt-1">
-                        🔒 Indisponível - você já selecionou "{blockingName}"
-                      </p>
-                    )}
-                  </div>
-                </label>
-              )
-            })}
-          </div>
-          {selectedServices.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-800/50 border border-cyan-500/30 rounded-lg">
-              <p className="text-lg font-semibold text-cyan-400">Total: R$ {totalPrice.toFixed(2)}</p>
-              <p className="text-sm text-gray-400">Duração estimada: {totalDuration} minutos</p>
-            </div>
-          )}
-        </Card>
+        <ServiceSelector
+          services={services}
+          selectedServices={selectedServices}
+          onToggle={(id) => {
+            const service = services.find(s => s.id === id)
+            if (!service) return
+
+            // Se está desmarcando, simplesmente remove
+            if (selectedServices.includes(id)) {
+              setSelectedServices(prev => prev.filter(sid => sid !== id))
+              return
+            }
+
+            // Se está marcando, verificar conflito de grupo
+            if (service.serviceGroup) {
+              // Remove qualquer serviço do mesmo grupo antes de adicionar
+              const otherGroupServices = selectedServices.filter(sid => {
+                const s = services.find(svc => svc.id === sid)
+                return s?.serviceGroup !== service.serviceGroup
+              })
+              setSelectedServices([...otherGroupServices, id])
+            } else {
+              // Serviço sem grupo, adiciona normalmente
+              setSelectedServices(prev => [...prev, id])
+            }
+          }}
+        />
 
         <Card>
           <h2 className="text-xl font-semibold mb-4">Dados do Agendamento</h2>
@@ -514,3 +431,4 @@ export default function NovoAgendamentoPage() {
     </div>
   )
 }
+
