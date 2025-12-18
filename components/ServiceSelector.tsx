@@ -31,6 +31,9 @@ export function ServiceSelector({
   title = 'Selecione os Serviços',
   showHint = true
 }: ServiceSelectorProps) {
+  // Ensure selected is always an array
+  const selectedArray = Array.isArray(selected) ? selected : []
+  
   const serviceMap = React.useMemo(() => {
     const map = new Map<string, ServiceOption>()
     services.forEach(s => map.set(s.id, s))
@@ -43,25 +46,25 @@ export function ServiceSelector({
 
     onChange(
       (() => {
-        const already = selected.includes(serviceId)
+        const already = selectedArray.includes(serviceId)
         if (already) {
-          return selected.filter(id => id !== serviceId)
+          return selectedArray.filter(id => id !== serviceId)
         }
         if (group) {
-          const filtered = selected.filter(id => {
+          const filtered = selectedArray.filter(id => {
             const s = serviceMap.get(id)
             return (s?.serviceGroup || null) !== group
           })
           return [...filtered, serviceId]
         }
-        return [...selected, serviceId]
+        return [...selectedArray, serviceId]
       })()
     )
   }
 
   const getConflictInfo = (service: ServiceOption): { conflictingName: string | null; isConflicted: boolean } => {
     if (!service.serviceGroup) return { conflictingName: null, isConflicted: false }
-    const conflictingId = selected.find(id => {
+    const conflictingId = selectedArray.find(id => {
       if (id === service.id) return false
       const s = serviceMap.get(id)
       return (s?.serviceGroup || null) === service.serviceGroup
@@ -83,7 +86,7 @@ export function ServiceSelector({
 
       <div className="space-y-2">
         {services.map((service) => {
-          const checked = selected.includes(service.id)
+          const checked = selectedArray.includes(service.id)
           const { conflictingName, isConflicted } = getConflictInfo(service)
           const disabled = isConflicted && !checked
 
@@ -110,7 +113,7 @@ export function ServiceSelector({
                   <div className="flex items-center gap-2">
                     <p className="text-white font-semibold">{service.name}</p>
                     {service.serviceGroup && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="info" className="text-xs">
                         {service.serviceGroup}
                       </Badge>
                     )}

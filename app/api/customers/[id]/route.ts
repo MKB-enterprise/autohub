@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/customers/[id] - Buscar cliente com histórico
 export async function GET(
@@ -7,23 +8,31 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth()
+    const isSelf = auth.customerId === params.id
+    const isAdmin = auth.isAdmin
+
     const customer = await prisma.customer.findUnique({
       where: { id: params.id },
       include: {
         cars: true,
-        appointments: {
-          include: {
-            car: true,
-            appointmentServices: {
-              include: {
-                service: true
+        ...(isAdmin
+          ? {
+              appointments: {
+                include: {
+                  car: true,
+                  appointmentServices: {
+                    include: {
+                      service: true
+                    }
+                  }
+                },
+                orderBy: {
+                  startDatetime: 'desc'
+                }
               }
             }
-          },
-          orderBy: {
-            startDatetime: 'desc'
-          }
-        }
+          : {})
       }
     })
 
@@ -34,13 +43,17 @@ export async function GET(
       )
     }
 
+    if (!isAdmin && !isSelf) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     return NextResponse.json(customer)
   } catch (error) {
     console.error('Erro ao buscar cliente:', error)
-    return NextResponse.json(
-      { error: 'Erro ao buscar cliente' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    return NextResponse.json({ error: 'Erro ao buscar cliente' }, { status: 500 })
   }
 }
 
@@ -50,8 +63,24 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth()
+    const isSelf = auth.customerId === params.id
+    const isAdmin = auth.isAdmin
+
+    if (!isAdmin && !isSelf) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { name, phone, notes } = body
+
+    if (phone) {
+      const normalizedPhone = String(phone).replace(/\D/g, '')
+      if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+        return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 })
+      }
+      body.phone = normalizedPhone
+    }
 
     const customer = await prisma.customer.update({
       where: { id: params.id },
@@ -68,11 +97,19 @@ export async function PATCH(
     return NextResponse.json(customer)
   } catch (error) {
     console.error('Erro ao atualizar cliente:', error)
-    return NextResponse.json(
-      { error: 'Erro ao atualizar cliente' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    return NextResponse.json({ error: 'Erro ao atualizar cliente' }, { status: 500 })
   }
+}
+
+// PUT alias
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  return PATCH(request, { params })
 }
 
 // DELETE /api/customers/[id] - Deletar cliente
@@ -81,6 +118,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     // Verificar se tem agendamentos ativos
     const activeAppointments = await prisma.appointment.count({
       where: {

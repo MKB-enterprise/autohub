@@ -135,15 +135,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (dur) qs.set('duration', dur)
       if (svcs) qs.set('services', svcs)
 
-      if (data.needsCarRegistration) {
-        const carQs = new URLSearchParams(qs)
-        if (redirect) carQs.set('redirect', redirect)
-        else carQs.set('redirect', '/agendamentos/novo')
-        carQs.set('firstCar', 'true')
-        router.push(`/carros?${carQs.toString()}`)
-        return
-      }
-
       if (redirect) {
         router.push(`${redirect}${qs.toString() ? `?${qs.toString()}` : ''}`)
         return

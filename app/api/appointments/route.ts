@@ -137,13 +137,16 @@ export async function POST(request: NextRequest) {
     endDatetime.setMinutes(endDatetime.getMinutes() + totalDuration)
 
     // Criar agendamento com serviços
+    const now = new Date()
+
     const appointment = await prisma.appointment.create({
       data: {
         customerId,
         carId,
         startDatetime: start,
         endDatetime,
-        status: 'PENDING',
+        status: 'CONFIRMED',
+        confirmedByBusinessAt: now,
         totalPrice,
         notes,
         appointmentServices: {

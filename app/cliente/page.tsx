@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
 import { Alert } from '@/components/ui/Alert'
 import { useData } from '@/lib/hooks/useFetch'
-import { format, differenceInHours } from 'date-fns'
+import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
 
@@ -105,18 +105,6 @@ export default function ClientePage() {
     mutate()
   }, [mutate])
 
-  // Verificar se pode confirmar (24h antes)
-  function canConfirm(appointment: Appointment): boolean {
-    if (appointment.status !== 'PENDING') return false
-    const hoursUntil = differenceInHours(new Date(appointment.startDatetime), new Date())
-    return hoursUntil <= 24 && hoursUntil > 0
-  }
-
-  // Verificar quantas horas faltam
-  function getHoursUntil(appointment: Appointment): number {
-    return differenceInHours(new Date(appointment.startDatetime), new Date())
-  }
-
   // Renderizar estrelas de reputação
   function renderStars(rating: number) {
     const stars = []
@@ -130,31 +118,6 @@ export default function ClientePage() {
       }
     }
     return stars
-  }
-
-  async function handleConfirmByClient(appointmentId: string) {
-    setActionLoading(appointmentId)
-    try {
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'CONFIRMED_BY_CLIENT',
-          confirmedByClientAt: new Date().toISOString()
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao confirmar agendamento')
-      }
-
-      setSuccess('Agendamento confirmado! Aguarde a confirmação da estética.')
-      loadAppointments()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao confirmar')
-    } finally {
-      setActionLoading(null)
-    }
   }
 
   async function handleAcceptReschedule(appointmentId: string, suggestedDatetime: string) {
@@ -183,32 +146,6 @@ export default function ClientePage() {
     }
   }
 
-  async function handleCancel(appointmentId: string) {
-    if (!confirm('Tem certeza que deseja cancelar este agendamento?')) {
-      return
-    }
-    setActionLoading(appointmentId)
-
-    try {
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'CANCELED' })
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao cancelar agendamento')
-      }
-
-      setSuccess('Agendamento cancelado.')
-      loadAppointments()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao cancelar')
-    } finally {
-      setActionLoading(null)
-    }
-  }
-
   if (authLoading) {
     return (
       <div className="space-y-6">
@@ -230,7 +167,7 @@ export default function ClientePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Meus Agendamentos</h1>
-            <p className="text-gray-400 mt-1">Acompanhe e confirme seus agendamentos</p>
+            <p className="text-gray-400 mt-1">Acompanhe seus agendamentos</p>
           </div>
           <Link href="/cliente/novo">
             <Button>+ Novo Agendamento</Button>
@@ -281,7 +218,7 @@ export default function ClientePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-white">Meus Agendamentos</h1>
-          <p className="text-gray-400 mt-1">Acompanhe e confirme seus agendamentos</p>
+          <p className="text-gray-400 mt-1">Acompanhe seus agendamentos</p>
         </div>
         <Link href="/cliente/novo">
           <Button>+ Novo Agendamento</Button>
@@ -291,18 +228,35 @@ export default function ClientePage() {
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
 
-      {/* Info sobre confirmação */}
-      <Card>
-        <div className="flex items-start gap-3">
-          <span className="text-2xl">ℹ️</span>
-          <div>
-            <h3 className="font-medium text-white">Como funciona a confirmação?</h3>
-            <p className="text-sm text-gray-400 mt-1">
-              1. Você agenda o serviço → 2. Confirma 24h antes → 3. A estética confirma → 4. Agendamento garantido!
-            </p>
-          </div>
-        </div>
-      </Card>
+      {/* Lembrete do dia */}
+      {(() => {
+        const today = new Date()
+        const todaysAppointment = filteredAppointments
+          .filter((apt) => {
+            const d = new Date(apt.startDatetime)
+            const sameDay = d.getFullYear() === today.getFullYear() && d.getMonth() === today.getMonth() && d.getDate() === today.getDate()
+            const allowed = !['CANCELED', 'NO_SHOW', 'COMPLETED'].includes(apt.status)
+            return sameDay && allowed
+          })
+          .sort((a, b) => new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime())[0]
+
+        if (!todaysAppointment) return null
+
+        return (
+          <Card>
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⏰</span>
+              <div>
+                <h3 className="font-medium text-white">Leve seu carro hoje</h3>
+                <p className="text-sm text-gray-300 mt-1">
+                  Você tem um horário às <strong>{format(new Date(todaysAppointment.startDatetime), 'HH:mm')}</strong> para o veículo {todaysAppointment.car.model} ({todaysAppointment.car.plate}).
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Caso precise cancelar, a estética registrará o motivo.</p>
+              </div>
+            </div>
+          </Card>
+        )
+      })()}
 
       {/* Card de Reputação - só mostra se o sistema estiver ativado */}
       {reputationSettings.enabled && (
@@ -389,10 +343,6 @@ export default function ClientePage() {
         ) : (
           <div className="space-y-4">
             {filteredAppointments.map((appointment) => {
-              const hoursUntil = getHoursUntil(appointment)
-              const showConfirmButton = canConfirm(appointment)
-              const needsConfirmation = appointment.status === 'PENDING' && hoursUntil > 24
-              
               return (
                 <div 
                   key={appointment.id} 
@@ -401,10 +351,6 @@ export default function ClientePage() {
                       ? 'border-green-500/30 bg-green-900/10'
                       : appointment.status === 'RESCHEDULED'
                       ? 'border-orange-500/30 bg-orange-900/10'
-                      : appointment.status === 'CONFIRMED_BY_CLIENT'
-                      ? 'border-blue-500/30 bg-blue-900/10'
-                      : showConfirmButton
-                      ? 'border-yellow-500/30 bg-yellow-900/10'
                       : 'border-gray-700 bg-gray-800/50'
                   }`}
                 >
@@ -427,45 +373,6 @@ export default function ClientePage() {
                     <p>🔧 <strong>Serviços:</strong> {appointment.appointmentServices.map(as => as.service.name).join(', ')}</p>
                     <p className="text-cyan-400">💰 <strong>Valor:</strong> R$ {Number(appointment.totalPrice).toFixed(2)}</p>
                   </div>
-
-                  {/* Mensagens de status */}
-                  {needsConfirmation && (
-                    <div className="mt-3 p-3 bg-gray-700/50 rounded-lg">
-                      <p className="text-sm text-gray-300">
-                        ⏳ Faltam <strong>{hoursUntil} horas</strong> para seu agendamento. 
-                        Você poderá confirmar quando faltar menos de 24h.
-                      </p>
-                    </div>
-                  )}
-
-                  {showConfirmButton && (
-                    <div className="mt-3 p-3 bg-yellow-900/30 border border-yellow-500/30 rounded-lg">
-                      <p className="text-sm text-yellow-400 mb-2">
-                        ⚠️ <strong>Confirmação necessária!</strong> Faltam {hoursUntil}h para seu agendamento.
-                      </p>
-                      <Button 
-                        size="sm" 
-                        variant="success"
-                        onClick={() => handleConfirmByClient(appointment.id)}
-                        disabled={actionLoading === appointment.id}
-                      >
-                        {actionLoading === appointment.id ? 'Confirmando...' : '✓ Confirmar Presença'}
-                      </Button>
-                    </div>
-                  )}
-
-                  {appointment.status === 'CONFIRMED_BY_CLIENT' && (
-                    <div className="mt-3 p-3 bg-blue-900/30 border border-blue-500/30 rounded-lg">
-                      <p className="text-sm text-blue-400">
-                        ⏳ Você confirmou sua presença. Aguardando confirmação da estética...
-                      </p>
-                      {appointment.confirmedByClientAt && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Confirmado em {format(new Date(appointment.confirmedByClientAt), "dd/MM 'às' HH:mm")}
-                        </p>
-                      )}
-                    </div>
-                  )}
 
                   {appointment.status === 'CONFIRMED' && (
                     <div className="mt-3 p-3 bg-green-900/30 border border-green-500/30 rounded-lg">
@@ -502,29 +409,7 @@ export default function ClientePage() {
                         >
                           {actionLoading === appointment.id ? 'Aceitando...' : '✓ Aceitar Novo Horário'}
                         </Button>
-                        <Button 
-                          size="sm" 
-                          variant="danger"
-                          onClick={() => handleCancel(appointment.id)}
-                          disabled={actionLoading === appointment.id}
-                        >
-                          {actionLoading === appointment.id ? '...' : '✗ Cancelar'}
-                        </Button>
                       </div>
-                    </div>
-                  )}
-
-                  {/* Botão de cancelar para agendamentos ainda não confirmados */}
-                  {['PENDING', 'CONFIRMED_BY_CLIENT'].includes(appointment.status) && (
-                    <div className="mt-4 pt-3 border-t border-gray-700">
-                      <Button
-                        size="sm"
-                        variant="danger"
-                        onClick={() => handleCancel(appointment.id)}
-                        disabled={actionLoading === appointment.id}
-                      >
-                        {actionLoading === appointment.id ? 'Cancelando...' : '✗ Cancelar Agendamento'}
-                      </Button>
                     </div>
                   )}
                 </div>

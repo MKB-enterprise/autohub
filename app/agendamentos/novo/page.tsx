@@ -14,6 +14,7 @@ import { Alert } from '@/components/ui/Alert'
 import { Loading } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
 import { ServiceSelector } from '@/components/ServiceSelector'
+import QuickCarRegistration from '@/components/QuickCarRegistration'
 
 interface Customer {
   id: string
@@ -67,7 +68,6 @@ export default function NovoAgendamentoPage() {
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false)
   const [showNewCarModal, setShowNewCarModal] = useState(false)
   const [savingCustomer, setSavingCustomer] = useState(false)
-  const [savingCar, setSavingCar] = useState(false)
 
   const selectedCustomerId = watch('customerId')
   const selectedDate = watch('date')
@@ -300,52 +300,11 @@ export default function NovoAgendamentoPage() {
     }
   }
 
-  async function createCar(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSavingCar(true)
-    const formData = new FormData(e.currentTarget)
-    
-    if (!selectedCustomerId) {
-      setError('Selecione um cliente primeiro')
-      setSavingCar(false)
-      return
-    }
-
-    try {
-      const response = await fetch('/api/cars', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: selectedCustomerId,
-          plate: formData.get('plate'),
-          model: formData.get('model'),
-          color: formData.get('color'),
-          notes: formData.get('notes')
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao criar carro')
-      }
-
-      const newCar = await response.json()
-      
-      // Atualizar lista de clientes com o novo carro
-      const updatedCustomers = customers.map(c => {
-        if (c.id === selectedCustomerId) {
-          return { ...c, cars: [...c.cars, newCar] }
-        }
-        return c
-      })
-      
-      setCustomers(updatedCustomers)
-      setCars([...cars, newCar])
-      setValue('carId', newCar.id)
-      setShowNewCarModal(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar carro')
-    } finally {
-      setSavingCar(false)
+  function handleCarRegistrationSuccess() {
+    // Recarregar clientes e seus carros após novo carro ser criado
+    setShowNewCarModal(false)
+    if (selectedCustomerId) {
+      loadInitialData()
     }
   }
 
@@ -512,26 +471,12 @@ export default function NovoAgendamentoPage() {
       )}
 
       {/* Modal Novo Carro */}
-      <Modal
+      <QuickCarRegistration
         isOpen={showNewCarModal}
         onClose={() => setShowNewCarModal(false)}
-        title="Novo Veículo"
-      >
-        <form onSubmit={createCar} className="space-y-4">
-          <Input label="Placa" name="plate" required />
-          <Input label="Modelo" name="model" required />
-          <Input label="Cor" name="color" />
-          <Textarea label="Observações" name="notes" rows={3} />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={savingCar}>
-              {savingCar ? 'Salvando...' : 'Salvar'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewCarModal(false)} disabled={savingCar}>
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        onSuccess={handleCarRegistrationSuccess}
+        customerId={selectedCustomerId || ''}
+      />
     </div>
   )
 }

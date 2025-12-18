@@ -340,30 +340,8 @@ export default function NovoAgendamentoPage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <ServiceSelector
           services={services}
-          selectedServices={selectedServices}
-          onToggle={(id) => {
-            const service = services.find(s => s.id === id)
-            if (!service) return
-
-            // Se está desmarcando, simplesmente remove
-            if (selectedServices.includes(id)) {
-              setSelectedServices(prev => prev.filter(sid => sid !== id))
-              return
-            }
-
-            // Se está marcando, verificar conflito de grupo
-            if (service.serviceGroup) {
-              // Remove qualquer serviço do mesmo grupo antes de adicionar
-              const otherGroupServices = selectedServices.filter(sid => {
-                const s = services.find(svc => svc.id === sid)
-                return s?.serviceGroup !== service.serviceGroup
-              })
-              setSelectedServices([...otherGroupServices, id])
-            } else {
-              // Serviço sem grupo, adiciona normalmente
-              setSelectedServices(prev => [...prev, id])
-            }
-          }}
+          selected={selectedServices}
+          onChange={(ids) => setSelectedServices(ids)}
         />
 
         <Card>

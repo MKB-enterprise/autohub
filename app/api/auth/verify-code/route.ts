@@ -13,6 +13,10 @@ export async function POST(request: NextRequest) {
 
     const normalizedPhone = phone.replace(/\D/g, '')
 
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 })
+    }
+
     const customer = await prisma.customer.findUnique({
       where: { phone: normalizedPhone }
     })
@@ -31,6 +35,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Código expirado' }, { status: 401 })
     }
 
+    const trimmedName = name?.trim()
+    const needsName = !customer.name || customer.name === 'Usuário Temporário' || customer.name.trim() === ''
+
+    if (needsName && !trimmedName) {
+      return NextResponse.json({ error: 'Nome é obrigatório para finalizar o login' }, { status: 400 })
+    }
+
     // Atualizar cliente
     const updatedCustomer = await prisma.customer.update({
       where: { phone: normalizedPhone },
@@ -38,8 +49,8 @@ export async function POST(request: NextRequest) {
         phoneVerified: true,
         verificationCode: null,
         verificationExpiry: null,
-        // Atualizar nome se fornecido
-        ...(name && customer.name === 'Usuário Temporário' ? { name } : {})
+        // Atualizar nome quando necessário
+        ...(trimmedName && (needsName || customer.name !== trimmedName) ? { name: trimmedName } : {})
       },
       include: {
         cars: true

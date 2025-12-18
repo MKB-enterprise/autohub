@@ -4,8 +4,8 @@ import { useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
 import { Alert } from '@/components/ui/Alert'
+import { VehicleTypeSelector, VehicleType } from '@/components/ui/CarCard'
 
 interface QuickCarRegistrationProps {
   isOpen: boolean
@@ -19,18 +19,23 @@ export default function QuickCarRegistration({ isOpen, onClose, onSuccess, custo
   const [model, setModel] = useState('')
   const [color, setColor] = useState('')
   const [year, setYear] = useState('')
-  const [vehicleType, setVehicleType] = useState('HATCH')
+  const [vehicleType, setVehicleType] = useState<VehicleType>('HATCH')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const vehicleTypes = [
-    { value: 'HATCH', label: 'Hatchback' },
-    { value: 'SEDAN', label: 'Sedan' },
-    { value: 'SUV', label: 'SUV' },
-    { value: 'PICKUP', label: 'Pickup' },
-    { value: 'MOTO', label: 'Moto' },
-    { value: 'VAN', label: 'Van' },
-  ]
+  function resetForm() {
+    setPlate('')
+    setModel('')
+    setColor('')
+    setYear('')
+    setVehicleType('HATCH')
+    setError(null)
+  }
+
+  function handleClose() {
+    resetForm()
+    onClose()
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -56,6 +61,7 @@ export default function QuickCarRegistration({ isOpen, onClose, onSuccess, custo
         throw new Error(data.error || 'Erro ao cadastrar veículo')
       }
 
+      resetForm()
       onSuccess()
       onClose()
     } catch (err) {
@@ -66,18 +72,14 @@ export default function QuickCarRegistration({ isOpen, onClose, onSuccess, custo
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Cadastrar Veículo">
+    <Modal isOpen={isOpen} onClose={handleClose} title="Novo Veículo">
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       
       <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-        <Input
-          label="Placa"
-          type="text"
-          value={plate}
-          onChange={(e) => setPlate(e.target.value.toUpperCase())}
-          required
-          placeholder="ABC-1234"
-        />
+        <div>
+          <label className="text-sm font-medium text-gray-300 mb-3 block">Tipo de Veículo</label>
+          <VehicleTypeSelector value={vehicleType} onChange={setVehicleType} />
+        </div>
 
         <Input
           label="Modelo"
@@ -88,15 +90,16 @@ export default function QuickCarRegistration({ isOpen, onClose, onSuccess, custo
           placeholder="Ex: Honda Civic"
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Cor"
-            type="text"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            placeholder="Ex: Preto"
-          />
+        <Input
+          label="Placa"
+          type="text"
+          value={plate}
+          onChange={(e) => setPlate(e.target.value.toUpperCase())}
+          required
+          placeholder="ABC1D23"
+        />
 
+        <div className="grid grid-cols-2 gap-4">
           <Input
             label="Ano"
             type="number"
@@ -104,21 +107,22 @@ export default function QuickCarRegistration({ isOpen, onClose, onSuccess, custo
             onChange={(e) => setYear(e.target.value)}
             placeholder="Ex: 2020"
           />
+
+          <Input
+            label="Cor"
+            type="text"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            placeholder="Ex: Preto"
+          />
         </div>
 
-        <Select
-          label="Tipo de Veículo"
-          value={vehicleType}
-          onChange={(e) => setVehicleType(e.target.value)}
-          options={vehicleTypes}
-        />
-
         <div className="flex gap-3 pt-4">
-          <Button type="button" variant="secondary" onClick={onClose} className="flex-1">
+          <Button type="button" variant="secondary" onClick={handleClose} className="flex-1">
             Cancelar
           </Button>
           <Button type="submit" disabled={loading} className="flex-1">
-            {loading ? '🔄 Cadastrando...' : '✅ Cadastrar'}
+            {loading ? '🔄 Cadastrando...' : '✅ Salvar'}
           </Button>
         </div>
       </form>

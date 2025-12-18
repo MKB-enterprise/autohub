@@ -13,6 +13,10 @@ export async function POST(request: NextRequest) {
     // Normalizar telefone (remover caracteres não numéricos)
     const normalizedPhone = phone.replace(/\D/g, '')
 
+    if (normalizedPhone.length < 10 || normalizedPhone.length > 11) {
+      return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 })
+    }
+
     // Gerar código de 6 dígitos
     const verificationCode = crypto.randomInt(100000, 999999).toString()
     
@@ -24,7 +28,10 @@ export async function POST(request: NextRequest) {
       where: { phone: normalizedPhone }
     })
 
+    let needsName = false
+
     if (customer) {
+      needsName = !customer.name || customer.name === 'Usuário Temporário' || customer.name.trim() === ''
       // Atualizar código de verificação
       customer = await prisma.customer.update({
         where: { phone: normalizedPhone },
@@ -43,6 +50,7 @@ export async function POST(request: NextRequest) {
           verificationExpiry,
         }
       })
+      needsName = true
     }
 
     // Em produção, aqui você enviaria o SMS via Twilio, SNS, etc.
@@ -50,6 +58,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message: 'Código enviado com sucesso',
+      needsName,
       // Em desenvolvimento, retornar o código (REMOVER EM PRODUÇÃO)
       devCode: process.env.NODE_ENV === 'development' ? verificationCode : undefined
     })

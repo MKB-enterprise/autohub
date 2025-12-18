@@ -26,9 +26,19 @@ export default function LoginPage() {
   const [codeSent, setCodeSent] = useState(false)
   const [devCode, setDevCode] = useState('')
   const [name, setName] = useState('')
+  const [needsName, setNeedsName] = useState(false)
   
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  function formatPhone(input: string) {
+    const digits = input.replace(/\D/g, '').slice(0, 11)
+
+    if (digits.length <= 2) return digits
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`
+
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+  }
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -64,6 +74,7 @@ export default function LoginPage() {
 
       setCodeSent(true)
       setDevCode(data.devCode || '')
+      setNeedsName(Boolean(data.needsName))
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao enviar código')
@@ -78,7 +89,12 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await loginWithPhone(phone, code, name)
+      const trimmedName = name.trim()
+      if (needsName && !trimmedName) {
+        throw new Error('Informe seu nome para continuar')
+      }
+
+      await loginWithPhone(phone, code, trimmedName || undefined)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao verificar código')
     } finally {
@@ -164,8 +180,9 @@ export default function LoginPage() {
                     label="Telefone"
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
                     required
+                    maxLength={16}
                     placeholder="(11) 99999-9999"
                   />
                   <Button type="submit" className="w-full" disabled={loading}>
@@ -174,13 +191,16 @@ export default function LoginPage() {
                 </form>
               ) : (
                 <form onSubmit={handleVerifyCode} className="space-y-4">
-                  <Input
-                    label="Nome"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Seu nome"
-                  />
+                  {needsName && (
+                    <Input
+                      label="Nome"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                      placeholder="Seu nome"
+                    />
+                  )}
                   <Input
                     label="Código de verificação"
                     type="text"

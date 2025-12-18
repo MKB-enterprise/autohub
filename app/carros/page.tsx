@@ -1,15 +1,15 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { Alert } from '@/components/ui/Alert'
-import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
-import { Select } from '@/components/ui/Select'
 import { useData } from '@/lib/hooks/useFetch'
+import { useAuth } from '@/lib/AuthContext'
+import QuickCarRegistration from '@/components/QuickCarRegistration'
 
 interface Car {
   id: string
@@ -32,49 +32,16 @@ interface Customer {
 }
 
 export default function CarrosPage() {
+  const { user } = useAuth()
   const { data: cars = [], isLoading: loading, mutate } = useData<Car[]>('/api/cars')
-  const { data: customers = [] } = useData<Customer[]>('/api/customers')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [saving, setSaving] = useState(false)
 
   const loadCars = useCallback(() => {
     mutate()
   }, [mutate])
-
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSaving(true)
-    const formData = new FormData(e.currentTarget)
-
-    try {
-      const response = await fetch('/api/cars', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          plate: formData.get('plate'),
-          model: formData.get('model'),
-          color: formData.get('color') || null,
-          customerId: formData.get('customerId')
-        })
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Erro ao cadastrar veículo')
-      }
-
-      setSuccess('Veículo cadastrado com sucesso!')
-      setShowNewModal(false)
-      loadCars()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao cadastrar veículo')
-    } finally {
-      setSaving(false)
-    }
-  }
 
   function getCarStatus(car: Car): { label: string; variant: 'success' | 'warning' | 'default' } {
     const hasInProgress = car.appointments.some(a => a.status === 'IN_PROGRESS')
@@ -197,32 +164,15 @@ export default function CarrosPage() {
         )}
       </Card>
 
-      {/* Modal Novo Carro */}
-      <Modal
+      <QuickCarRegistration
         isOpen={showNewModal}
         onClose={() => setShowNewModal(false)}
-        title="Novo Carro"
-      >
-        <form onSubmit={handleCreate} className="space-y-4">
-          <Select
-            label="Proprietário"
-            name="customerId"
-            required
-            options={customers.map(c => ({ value: c.id, label: c.name }))}
-          />
-          <Input label="Placa" name="plate" placeholder="ABC-1234" required />
-          <Input label="Modelo" name="model" placeholder="Honda Civic 2020" required />
-          <Input label="Cor" name="color" placeholder="Prata" />
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={saving}>
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        onSuccess={() => {
+          setSuccess('Veículo cadastrado com sucesso!')
+          loadCars()
+        }}
+        customerId={user?.id || ''}
+      />
     </div>
   )
 }
