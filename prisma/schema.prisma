@@ -17,26 +17,43 @@ model Service {
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   serviceGroup        String?              @map("service_group")
+  categoryId          String?              @map("category_id")
+  category            Category?            @relation(fields: [categoryId], references: [id])
   appointmentServices AppointmentService[]
 
   @@map("services")
 }
 
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  services    Service[]
+
+  @@map("categories")
+}
+
 model Customer {
-  id             String        @id @default(cuid())
-  name           String
-  phone          String        @unique
-  email          String?       @unique
-  password       String?
-  notes          String?
-  isAdmin        Boolean       @default(false) @map("is_admin")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  updatedAt      DateTime      @updatedAt @map("updated_at")
-  completedCount Int           @default(0) @map("completed_count")
-  noShowCount    Int           @default(0) @map("no_show_count")
-  rating         Decimal       @default(5.0) @db.Decimal(2, 1)
-  appointments   Appointment[]
-  cars           Car[]
+  id                  String        @id @default(cuid())
+  name                String
+  phone               String        @unique
+  email               String?       @unique
+  password            String?
+  notes               String?
+  isAdmin             Boolean       @default(false) @map("is_admin")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  completedCount      Int           @default(0) @map("completed_count")
+  noShowCount         Int           @default(0) @map("no_show_count")
+  rating              Decimal       @default(5.0) @db.Decimal(2, 1)
+  googleId            String?       @unique @map("google_id")
+  phoneVerified       Boolean       @default(false) @map("phone_verified")
+  verificationCode    String?       @map("verification_code")
+  verificationExpiry  DateTime?     @map("verification_expiry")
+  appointments        Appointment[]
+  cars                Car[]
 
   @@map("customers")
 }

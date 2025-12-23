@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { format } from 'date-fns'
+import { useAuth } from '@/lib/AuthContext'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -12,6 +13,10 @@ import { Card } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Alert'
 import { Loading } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
+import { ServiceSelector } from '@/components/ServiceSelector'
+import Collapsible from '@/components/ui/Collapsible'
+import GuidedBooking from '@/components/GuidedBooking'
+import QuickCarRegistration from '@/components/QuickCarRegistration'
 
 interface Customer {
   id: string
@@ -33,6 +38,7 @@ interface Service {
   description: string | null
   durationMinutes: number
   price: number
+  serviceGroup?: string | null
 }
 
 interface AppointmentFormData {
@@ -46,6 +52,8 @@ interface AppointmentFormData {
 
 export default function NovoAgendamentoPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user } = useAuth()
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<AppointmentFormData>()
 
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -62,7 +70,6 @@ export default function NovoAgendamentoPage() {
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false)
   const [showNewCarModal, setShowNewCarModal] = useState(false)
   const [savingCustomer, setSavingCustomer] = useState(false)
-  const [savingCar, setSavingCar] = useState(false)
 
   const selectedCustomerId = watch('customerId')
   const selectedDate = watch('date')
@@ -70,6 +77,34 @@ export default function NovoAgendamentoPage() {
   useEffect(() => {
     loadInitialData()
   }, [])
+
+  // Se o user é um cliente (não-admin), prefill com seu próprio ID
+  useEffect(() => {
+    if (user && !user.isAdmin && customers.length > 0) {
+      setValue('customerId', user.id)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, customers])
+
+  // Prefill date/time from query params (from public selection)
+  useEffect(() => {
+    const d = searchParams.get('date')
+    const t = searchParams.get('time')
+    if (d) setValue('date', d)
+    if (t) setValue('time', t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // After services load, preselect services from ?services=id1,id2
+  useEffect(() => {
+    const svcs = searchParams.get('services')
+    if (!svcs || services.length === 0) return
+    const ids = svcs.split(',').filter(Boolean)
+    // Only keep valid ones
+    const valid = ids.filter(id => services.some(s => s.id === id))
+    if (valid.length) setSelectedServices(valid)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [services])
 
   useEffect(() => {
     if (selectedCustomerId) {
@@ -79,6 +114,8 @@ export default function NovoAgendamentoPage() {
       setCars([])
     }
   }, [selectedCustomerId, customers])
+
+  // Removed auto-open behavior for car modal per request
 
   // Calcular duração e preço total quando serviços mudam
   useEffect(() => {
@@ -92,21 +129,11 @@ export default function NovoAgendamentoPage() {
       return sum + Number(service?.price || 0)
     }, 0)
 
-    console.log('Serviços selecionados:', selectedServices.length)
-    console.log('Duração total:', duration, 'minutos')
-    console.log('Preço total:', price)
-
     setTotalDuration(duration)
     setTotalPrice(price)
   }, [selectedServices, services])
 
-  useEffect(() => {
-    if (selectedDate && selectedServices.length > 0) {
-      checkAvailability()
-    } else {
-      setAvailableSlots([])
-    }
-  }, [selectedDate, selectedServices])
+  // Removed: checkAvailability useEffect - GuidedBooking already handles this
 
   async function loadInitialData() {
     try {
@@ -162,12 +189,27 @@ export default function NovoAgendamentoPage() {
   }
 
   function toggleService(serviceId: string) {
+    const svc = services.find(s => s.id === serviceId)
+    const group = svc?.serviceGroup || null
+
     setSelectedServices(prev => {
-      if (prev.includes(serviceId)) {
+      const already = prev.includes(serviceId)
+      if (already) {
+        // Desmarca o serviço
         return prev.filter(id => id !== serviceId)
-      } else {
-        return [...prev, serviceId]
       }
+
+      // Se tem grupo, remove outros do mesmo grupo
+      if (group) {
+        const filtered = prev.filter(id => {
+          const s = services.find(x => x.id === id)
+          return (s?.serviceGroup || null) !== group
+        })
+        return [...filtered, serviceId]
+      }
+
+      // Sem grupo: só adiciona
+      return [...prev, serviceId]
     })
   }
 
@@ -252,52 +294,27 @@ export default function NovoAgendamentoPage() {
     }
   }
 
-  async function createCar(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSavingCar(true)
-    const formData = new FormData(e.currentTarget)
+  async function handleCarRegistrationSuccess() {
+    setShowNewCarModal(false)
     
-    if (!selectedCustomerId) {
-      setError('Selecione um cliente primeiro')
-      setSavingCar(false)
-      return
-    }
-
+    // Buscar os dados atualizados
     try {
-      const response = await fetch('/api/cars', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: selectedCustomerId,
-          plate: formData.get('plate'),
-          model: formData.get('model'),
-          color: formData.get('color'),
-          notes: formData.get('notes')
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao criar carro')
-      }
-
-      const newCar = await response.json()
-      
-      // Atualizar lista de clientes com o novo carro
-      const updatedCustomers = customers.map(c => {
-        if (c.id === selectedCustomerId) {
-          return { ...c, cars: [...c.cars, newCar] }
+      const customersRes = await fetch('/api/customers')
+      if (customersRes.ok) {
+        const customersData = await customersRes.json()
+        setCustomers(customersData)
+        
+        // Atualizar a lista de carros imediatamente
+        const currentCustomerId = selectedCustomerId || user?.id
+        if (currentCustomerId) {
+          const customer = customersData.find((c: Customer) => c.id === currentCustomerId)
+          if (customer) {
+            setCars(customer.cars || [])
+          }
         }
-        return c
-      })
-      
-      setCustomers(updatedCustomers)
-      setCars([...cars, newCar])
-      setValue('carId', newCar.id)
-      setShowNewCarModal(false)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar carro')
-    } finally {
-      setSavingCar(false)
+      console.error('Erro ao recarregar dados:', err)
     }
   }
 
@@ -316,24 +333,53 @@ export default function NovoAgendamentoPage() {
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
+      {/* Guided flow for logged users: objective → service → date/period/time */}
+      <Card title="Seleção guiada">
+        <GuidedBooking
+          onContinue={({ services: guidedServices, date, time }) => {
+            const ids = guidedServices.map(s => s.id)
+            setSelectedServices(ids)
+            setValue('date', date)
+            setValue('time', time)
+            const duration = guidedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
+            const price = guidedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
+            setTotalDuration(duration)
+            setTotalPrice(price)
+            setError(null)
+          }}
+        />
+      </Card>
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Hidden fields to keep date/time in form state */}
+        <input type="hidden" {...register('date', { required: 'Data é obrigatória' })} />
+        <input type="hidden" {...register('time', { required: 'Horário é obrigatório' })} />
         <Card title="Dados do Cliente">
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <Select
-                  label="Cliente"
-                  {...register('customerId', { required: 'Cliente é obrigatório' })}
-                  options={customers.map(c => ({ value: c.id, label: `${c.name} - ${c.phone}` }))}
-                  error={errors.customerId?.message}
-                />
+            {user?.isAdmin ? (
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Select
+                    label="Cliente"
+                    {...register('customerId', { required: 'Cliente é obrigatório' })}
+                    options={customers.map(c => ({ value: c.id, label: `${c.name} - ${c.phone}` }))}
+                    error={errors.customerId?.message}
+                  />
+                </div>
+                <div className="pt-6">
+                  <Button type="button" onClick={() => setShowNewCustomerModal(true)} size="sm">
+                    + Novo Cliente
+                  </Button>
+                </div>
               </div>
-              <div className="pt-6">
-                <Button type="button" onClick={() => setShowNewCustomerModal(true)} size="sm">
-                  + Novo Cliente
-                </Button>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Cliente</label>
+                <div className="p-3 bg-gray-800/50 border border-gray-700 rounded text-white">
+                  {user?.name} ({user?.phone})
+                </div>
               </div>
-            </div>
+            )}
 
             {selectedCustomerId && (
               <div className="flex gap-2">
@@ -355,93 +401,27 @@ export default function NovoAgendamentoPage() {
           </div>
         </Card>
 
-        <Card title="Serviços">
-          <div className="space-y-3">
-            {services.map(service => (
-              <label
-                key={service.id}
-                className="flex items-start gap-3 p-3 border border-gray-700 rounded hover:bg-gray-800/50 hover:border-cyan-500/30 cursor-pointer transition-colors bg-gray-900/50"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedServices.includes(service.id)}
-                  onChange={() => toggleService(service.id)}
-                  className="mt-1 accent-cyan-500"
-                />
-                <div className="flex-1">
-                  <div className="font-medium text-white">{service.name}</div>
-                  {service.description && (
-                    <div className="text-sm text-gray-500">{service.description}</div>
-                  )}
-                  <div className="text-sm text-gray-400 mt-1">
-                    {service.durationMinutes} min - R$ {Number(service.price).toFixed(2)}
-                  </div>
-                </div>
-              </label>
-            ))}
-          </div>
-
-          {selectedServices.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-800/50 border border-cyan-500/30 rounded-lg">
-              <p className="text-lg font-semibold text-cyan-400">Total: R$ {totalPrice.toFixed(2)}</p>
-              <p className="text-sm text-gray-400">Duração estimada: {totalDuration} minutos</p>
-            </div>
-          )}
-        </Card>
-
-        <Card title="Data e Horário">
-          <div className="space-y-4">
-            <Input
-              type="date"
-              label="Data"
-              {...register('date', { required: 'Data é obrigatória' })}
-              min={format(new Date(), 'yyyy-MM-dd')}
-              error={errors.date?.message}
+        {/* Advanced selection (optional): keep available for admins who want overrides */}
+        {user?.isAdmin && (
+          <Card title="Serviços (opcional)">
+            <ServiceSelector
+              services={services}
+              selected={selectedServices}
+              onChange={setSelectedServices}
+              totalDuration={totalDuration}
+              totalPrice={totalPrice}
+              showHint={false}
             />
+          </Card>
+        )}
 
-            {checkingAvailability ? (
-              <Loading />
-            ) : availableSlots.length > 0 ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Horários Disponíveis <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {availableSlots.map((slot: any) => {
-                    // Pegar hora local do slot (que vem em UTC)
-                    const slotDate = new Date(slot)
-                    const slotTime = slotDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
-                    return (
-                      <label
-                        key={slot}
-                        className="flex items-center justify-center p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-800/50 hover:border-cyan-500/30 transition-colors bg-gray-900/50 text-white"
-                      >
-                        <input
-                          type="radio"
-                          {...register('time', { required: 'Horário é obrigatório' })}
-                          value={slotTime}
-                          className="mr-2 accent-cyan-500"
-                        />
-                        {slotTime}
-                      </label>
-                    )
-                  })}
-                </div>
-                {errors.time && (
-                  <p className="mt-1 text-sm text-red-600">{errors.time.message}</p>
-                )}
-              </div>
-            ) : selectedDate && selectedServices.length > 0 ? (
-              <Alert type="warning" message="Não há horários disponíveis para esta data. Tente outra data." />
-            ) : null}
-
-            <Textarea
-              label="Observações"
-              {...register('notes')}
-              rows={3}
-              placeholder="Observações sobre o agendamento..."
-            />
-          </div>
+        <Card title="Observações">
+          <Textarea
+            label="Observações"
+            {...register('notes')}
+            rows={3}
+            placeholder="Observações sobre o agendamento..."
+          />
         </Card>
 
         <div className="flex gap-4">
@@ -455,47 +435,35 @@ export default function NovoAgendamentoPage() {
       </form>
 
       {/* Modal Novo Cliente */}
-      <Modal
-        isOpen={showNewCustomerModal}
-        onClose={() => setShowNewCustomerModal(false)}
-        title="Novo Cliente"
-      >
-        <form onSubmit={createCustomer} className="space-y-4">
-          <Input label="Nome" name="name" required />
-          <Input label="Telefone" name="phone" type="tel" required />
-          <Textarea label="Observações" name="notes" rows={3} />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={savingCustomer}>
-              {savingCustomer ? 'Salvando...' : 'Salvar'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewCustomerModal(false)} disabled={savingCustomer}>
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
+      {user?.isAdmin && (
+        <Modal
+          isOpen={showNewCustomerModal}
+          onClose={() => setShowNewCustomerModal(false)}
+          title="Novo Cliente"
+        >
+          <form onSubmit={createCustomer} className="space-y-4">
+            <Input label="Nome" name="name" required />
+            <Input label="Telefone" name="phone" type="tel" required />
+            <Textarea label="Observações" name="notes" rows={3} />
+            <div className="flex gap-2">
+              <Button type="submit" disabled={savingCustomer}>
+                {savingCustomer ? 'Salvando...' : 'Salvar'}
+              </Button>
+              <Button type="button" variant="secondary" onClick={() => setShowNewCustomerModal(false)} disabled={savingCustomer}>
+                Cancelar
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
 
       {/* Modal Novo Carro */}
-      <Modal
+      <QuickCarRegistration
         isOpen={showNewCarModal}
         onClose={() => setShowNewCarModal(false)}
-        title="Novo Veículo"
-      >
-        <form onSubmit={createCar} className="space-y-4">
-          <Input label="Placa" name="plate" required />
-          <Input label="Modelo" name="model" required />
-          <Input label="Cor" name="color" />
-          <Textarea label="Observações" name="notes" rows={3} />
-          <div className="flex gap-2">
-            <Button type="submit" disabled={savingCar}>
-              {savingCar ? 'Salvando...' : 'Salvar'}
-            </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewCarModal(false)} disabled={savingCar}>
-              Cancelar
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        onSuccess={handleCarRegistrationSuccess}
+        customerId={selectedCustomerId || ''}
+      />
     </div>
   )
 }

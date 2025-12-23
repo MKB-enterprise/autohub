@@ -17,6 +17,12 @@ export interface Service {
   durationMinutes: number
   price: number
   isActive: boolean
+  serviceGroup?: string | null
+  categoryId?: string | null
+  category?: {
+    id: string
+    name: string
+  } | null
 }
 
 export interface Customer {

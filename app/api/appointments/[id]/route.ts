@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateAppointmentSlot, calculateTotalPrice } from '@/lib/availability'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/appointments/[id] - Buscar agendamento específico
 export async function GET(
@@ -44,6 +45,18 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth()
+    const existing = await prisma.appointment.findUnique({
+      where: { id: params.id },
+      select: { customerId: true }
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
+    }
+
+    const isAdmin = auth.isAdmin
+    const isOwner = auth.customerId === existing.customerId
     const body = await request.json()
     const { 
       status, 
@@ -58,9 +71,20 @@ export async function PATCH(
 
     // Se está apenas atualizando status e/ou campos de confirmação
     if (status || confirmedByClientAt || confirmedByBusinessAt || suggestedDatetime || businessNotes !== undefined) {
+      if (status === 'CANCELED' && !isAdmin) {
+        return NextResponse.json({ error: 'Apenas a estética pode cancelar agendamentos' }, { status: 403 })
+      }
+
       const updateData: any = {}
       
-      if (status) updateData.status = status
+      if (status) {
+        if (status === 'CANCELED') {
+          if (!businessNotes || String(businessNotes).trim().length === 0) {
+            return NextResponse.json({ error: 'Informe um motivo para cancelar' }, { status: 400 })
+          }
+        }
+        updateData.status = status
+      }
       if (confirmedByClientAt) updateData.confirmedByClientAt = new Date(confirmedByClientAt)
       if (confirmedByBusinessAt) updateData.confirmedByBusinessAt = new Date(confirmedByBusinessAt)
       if (suggestedDatetime) updateData.suggestedDatetime = new Date(suggestedDatetime)
@@ -161,6 +185,9 @@ export async function PATCH(
 
     // Se está reagendando
     if (startDatetime || serviceIds) {
+      if (!isAdmin && !isOwner) {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+      }
       const currentAppointment = await prisma.appointment.findUnique({
         where: { id: params.id },
         include: {
@@ -250,10 +277,10 @@ export async function PATCH(
     )
   } catch (error) {
     console.error('Erro ao atualizar agendamento:', error)
-    return NextResponse.json(
-      { error: 'Erro ao atualizar agendamento' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    return NextResponse.json({ error: 'Erro ao atualizar agendamento' }, { status: 500 })
   }
 }
 
@@ -263,6 +290,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    const auth = await requireAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     await prisma.appointment.delete({
       where: { id: params.id }
     })

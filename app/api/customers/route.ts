@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/customers - Listar clientes
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth()
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
 
     const where: any = {}
+
+    if (!auth.isAdmin) {
+      where.id = auth.customerId
+    }
 
     if (search) {
       where.OR = [
@@ -20,9 +26,9 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         cars: true,
-        _count: {
+        _count: auth.isAdmin ? {
           select: { appointments: true }
-        }
+        } : undefined
       },
       orderBy: {
         name: 'asc'
@@ -32,16 +38,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(customers)
   } catch (error) {
     console.error('Erro ao buscar clientes:', error)
-    return NextResponse.json(
-      { error: 'Erro ao buscar clientes' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    return NextResponse.json({ error: 'Erro ao buscar clientes' }, { status: 500 })
   }
 }
 
 // POST /api/customers - Criar cliente
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth()
+    if (!auth.isAdmin) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     const body = await request.json()
     const { name, phone, notes } = body
 

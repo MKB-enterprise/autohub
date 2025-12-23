@@ -12,7 +12,7 @@ export function Badge({ children, variant = 'default', className = '' }: BadgePr
     success: 'bg-green-500/20 text-green-400 border border-green-500/50 shadow-lg shadow-green-500/10',
     warning: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 shadow-lg shadow-yellow-500/10',
     danger: 'bg-red-500/20 text-red-400 border border-red-500/50 shadow-lg shadow-red-500/10',
-    info: 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50 shadow-lg shadow-cyan-500/10'
+    info: 'bg-blue-500/20 text-blue-400 border border-blue-500/50 shadow-lg shadow-blue-500/10'
   }
 
   return (

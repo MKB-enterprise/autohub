@@ -15,15 +15,25 @@ async function createAdmin() {
       where: { email }
     })
 
-    if (existing) {
-      console.log('✅ Admin já existe!')
-      console.log('Email:', email)
-      console.log('Senha:', password)
-      return
-    }
-
     // Hash da senha
     const hashedPassword = await bcrypt.hash(password, 10)
+
+    if (existing) {
+      const admin = await prisma.customer.update({
+        where: { email },
+        data: {
+          name,
+          phone,
+          password: hashedPassword,
+          isAdmin: true
+        }
+      })
+      console.log('🔄 Admin encontrado. Senha e dados atualizados.')
+      console.log('Email:', email)
+      console.log('Senha:', password)
+      console.log('ID:', admin.id)
+      return
+    }
 
     // Criar admin
     const admin = await prisma.customer.create({

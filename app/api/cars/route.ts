@@ -1,15 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAuth } from '@/lib/auth'
 
 // GET /api/cars - Listar carros
 export async function GET(request: NextRequest) {
   try {
+    const auth = await requireAuth()
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get('customerId')
 
     const where: any = {}
 
-    if (customerId) {
+    if (!auth.isAdmin) {
+      if (customerId && customerId !== auth.customerId) {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+      }
+      where.customerId = auth.customerId
+    } else if (customerId) {
       where.customerId = customerId
     }
 
@@ -41,16 +48,20 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(cars)
   } catch (error) {
     console.error('Erro ao buscar carros:', error)
-    return NextResponse.json(
-      { error: 'Erro ao buscar carros' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message.startsWith('Forbidden')) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+    return NextResponse.json({ error: 'Erro ao buscar carros' }, { status: 500 })
   }
 }
 
 // POST /api/cars - Criar carro
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireAuth()
     const body = await request.json()
     const { customerId, plate, model, color, notes, year, vehicleType } = body
 
@@ -59,6 +70,10 @@ export async function POST(request: NextRequest) {
         { error: 'Cliente, placa e modelo são obrigatórios' },
         { status: 400 }
       )
+    }
+
+    if (!auth.isAdmin && customerId !== auth.customerId) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     const car = await prisma.car.create({
@@ -79,9 +94,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(car, { status: 201 })
   } catch (error) {
     console.error('Erro ao criar carro:', error)
-    return NextResponse.json(
-      { error: 'Erro ao criar carro' },
-      { status: 500 }
-    )
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+    if (error instanceof Error && error.message.startsWith('Forbidden')) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+    return NextResponse.json({ error: 'Erro ao criar carro' }, { status: 500 })
   }
 }

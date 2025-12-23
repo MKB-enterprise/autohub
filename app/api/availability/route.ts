@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAvailableSlots, calculateTotalDuration, calculateTotalPrice, suggestNextAvailableSlots } from '@/lib/availability'
+import { getAvailableSlots, calculateTotalDuration, calculateTotalPrice, suggestNextAvailableSlots, getAvailableSlotsForDuration } from '@/lib/availability'
 import { format } from 'date-fns'
 
 // GET /api/availability?date=YYYY-MM-DD&durationMinutes=XX&serviceIds=id1,id2
@@ -19,22 +19,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Se não passar serviceIds, retorna array vazio
-    if (!serviceIdsParam) {
-      return NextResponse.json({
-        availableTimes: [],
-        message: 'Selecione pelo menos um serviço'
-      })
-    }
-
-    const serviceIds = serviceIdsParam.split(',').filter(Boolean)
-    
-    if (serviceIds.length === 0) {
-      return NextResponse.json({
-        availableTimes: [],
-        message: 'Selecione pelo menos um serviço'
-      })
-    }
+    // Se não passar serviceIds, podemos tentar via duração (pública)
+    const serviceIds = serviceIdsParam ? serviceIdsParam.split(',').filter(Boolean) : []
 
     // Criar a data corretamente no timezone local (não UTC)
     // Formato esperado: YYYY-MM-DD
@@ -42,15 +28,27 @@ export async function GET(request: NextRequest) {
     const targetDate = new Date(year, month - 1, day, 12, 0, 0) // Meio-dia para evitar problemas de timezone
     console.log('Data alvo:', targetDate, 'ISO:', targetDate.toISOString())
 
-    const availableSlots = await getAvailableSlots(targetDate, serviceIds)
+    let availableSlots: Date[] = []
+    if (serviceIds.length > 0) {
+      availableSlots = await getAvailableSlots(targetDate, serviceIds)
+    } else if (durationMinutes) {
+      const dur = parseInt(durationMinutes, 10)
+      if (!isNaN(dur) && dur > 0) {
+        availableSlots = await getAvailableSlotsForDuration(targetDate, dur)
+      }
+    }
     console.log('Slots encontrados:', availableSlots.length)
 
     // Formatar horários como strings HH:mm
     const availableTimes = availableSlots.map(slot => format(slot, 'HH:mm'))
 
     // Calcular informações úteis
-    const totalDuration = await calculateTotalDuration(serviceIds)
-    const totalPrice = await calculateTotalPrice(serviceIds)
+    const totalDuration = serviceIds.length > 0
+      ? await calculateTotalDuration(serviceIds)
+      : (durationMinutes ? parseInt(durationMinutes, 10) : 0)
+    const totalPrice = serviceIds.length > 0
+      ? await calculateTotalPrice(serviceIds)
+      : 0
 
     return NextResponse.json({
       availableTimes,

@@ -11,6 +11,11 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { useData } from '@/lib/hooks/useFetch'
 
+interface Category {
+  id: string
+  name: string
+}
+
 interface Service {
   id: string
   name: string
@@ -19,6 +24,8 @@ interface Service {
   price: number
   isActive: boolean
   serviceGroup: string | null
+  categoryId?: string | null
+  category?: Category | null
 }
 
 // Grupos padrão sugeridos (admin pode criar novos)
@@ -40,6 +47,7 @@ function formatDuration(minutes: number): string {
 
 export default function ServicosPage() {
   const { data: services = [], isLoading: loading, mutate } = useData<Service[]>('/api/services')
+  const { data: categories = [] } = useData<Category[]>('/api/categories')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
@@ -68,7 +76,8 @@ export default function ServicosPage() {
           durationMinutes: parseInt(formData.get('durationMinutes') as string),
           price: parseFloat(formData.get('price') as string),
           isActive: true,
-          serviceGroup: formData.get('serviceGroup') || null
+          serviceGroup: formData.get('serviceGroup') || null,
+          categoryId: formData.get('categoryId') || null
         })
       })
 
@@ -104,7 +113,8 @@ export default function ServicosPage() {
           durationMinutes: parseInt(formData.get('durationMinutes') as string),
           price: parseFloat(formData.get('price') as string),
           isActive: formData.get('isActive') === 'true',
-          serviceGroup: formData.get('serviceGroup') || null
+          serviceGroup: formData.get('serviceGroup') || null,
+          categoryId: formData.get('categoryId') || null
         })
       })
 
@@ -189,7 +199,7 @@ export default function ServicosPage() {
               placeholder="Buscar serviços..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
+              className="w-full pl-10 pr-4 py-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -236,6 +246,14 @@ export default function ServicosPage() {
                   </span>
                 </div>
 
+                {service.category && (
+                  <div className="mb-2">
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-200 border border-blue-500/30">
+                      🏷️ {service.category.name}
+                    </span>
+                  </div>
+                )}
+
                 {service.serviceGroup && (
                   <div className="mb-3">
                     <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
@@ -244,7 +262,7 @@ export default function ServicosPage() {
                   </div>
                 )}
 
-                <p className="text-2xl font-bold text-cyan-400 mb-4">
+                <p className="text-2xl font-bold text-blue-400 mb-4">
                   R$ {Number(service.price).toFixed(2).replace('.', ',')}
                 </p>
 
@@ -305,7 +323,7 @@ export default function ServicosPage() {
             <select 
               name="serviceGroup" 
               defaultValue=""
-              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {SUGGESTED_GROUPS.map(group => (
                 <option key={group.value} value={group.value}>{group.label}</option>
@@ -313,6 +331,24 @@ export default function ServicosPage() {
             </select>
             <p className="text-xs text-gray-400 mt-1">
               Serviços do mesmo grupo são mutuamente exclusivos (cliente só pode escolher um)
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Categoria
+            </label>
+            <select
+              name="categoryId"
+              defaultValue=""
+              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Sem categoria</option>
+              {categories.map(category => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Use categorias para organizar o catálogo de serviços
             </p>
           </div>
           <div className="flex gap-2">
@@ -362,7 +398,7 @@ export default function ServicosPage() {
             <select 
               name="serviceGroup" 
               defaultValue={selectedService?.serviceGroup || ''}
-              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {SUGGESTED_GROUPS.map(group => (
                 <option key={group.value} value={group.value}>{group.label}</option>
@@ -374,12 +410,30 @@ export default function ServicosPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">
+              Categoria
+            </label>
+            <select
+              name="categoryId"
+              defaultValue={selectedService?.categoryId || ''}
+              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Sem categoria</option>
+              {categories.map(category => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              Use categorias para organizar o catálogo de serviços
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
               Status
             </label>
             <select 
               name="isActive" 
               defaultValue={selectedService?.isActive ? 'true' : 'false'}
-              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
+              className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="true">Ativo</option>
               <option value="false">Inativo</option>

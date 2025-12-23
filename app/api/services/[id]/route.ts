@@ -8,7 +8,10 @@ export async function GET(
 ) {
   try {
     const service = await prisma.service.findUnique({
-      where: { id: params.id }
+      where: { id: params.id },
+      include: {
+        category: true
+      }
     })
 
     if (!service) {
@@ -35,7 +38,7 @@ export async function PATCH(
 ) {
   try {
     const body = await request.json()
-    const { name, description, durationMinutes, price, isActive, serviceGroup } = body
+    const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId } = body
 
     if (durationMinutes !== undefined && durationMinutes <= 0) {
       return NextResponse.json(
@@ -51,6 +54,13 @@ export async function PATCH(
       )
     }
 
+    if (categoryId) {
+      const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } })
+      if (!categoryExists) {
+        return NextResponse.json({ error: 'Categoria não encontrada' }, { status: 400 })
+      }
+    }
+
     const service = await prisma.service.update({
       where: { id: params.id },
       data: {
@@ -59,7 +69,11 @@ export async function PATCH(
         ...(durationMinutes && { durationMinutes }),
         ...(price && { price }),
         ...(isActive !== undefined && { isActive }),
-        ...(serviceGroup !== undefined && { serviceGroup: serviceGroup || null })
+        ...(serviceGroup !== undefined && { serviceGroup: serviceGroup || null }),
+        ...(categoryId !== undefined && { categoryId: categoryId || null })
+      },
+      include: {
+        category: true
       }
     })
 

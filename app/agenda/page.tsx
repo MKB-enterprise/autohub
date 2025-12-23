@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { format, addDays, subDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Button } from '@/components/ui/Button'
@@ -12,7 +12,10 @@ import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { useData } from '@/lib/hooks/useFetch'
+import { AppointmentMenu } from '@/components/AppointmentMenu'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/AuthContext'
 
 interface Appointment {
   id: string
@@ -78,6 +81,8 @@ const LUNCH_START_HOUR = 12
 const LUNCH_END_HOUR = 13
 
 export default function AgendaPage() {
+  const router = useRouter()
+  const { user, loading } = useAuth()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -91,13 +96,70 @@ export default function AgendaPage() {
   const [businessNotes, setBusinessNotes] = useState('')
   const [savingReschedule, setSavingReschedule] = useState(false)
 
-  // SWR para cache e revalidação automática
+  // Bloqueio de acesso: apenas admin
+  useEffect(() => {
+    if (loading) return
+    if (!user) {
+      router.replace('/')
+      return
+    }
+    if (!user.isAdmin) {
+      router.replace('/cliente')
+    }
+  }, [user, loading, router])
+
+  // SWR para cache e revalidação automática (só inicia se admin)
   const dateStr = format(currentDate, 'yyyy-MM-dd')
-  const { data: appointments = [], isLoading, mutate } = useData<Appointment[]>(`/api/appointments?date=${dateStr}`)
+  const { data: appointments = [], isLoading, mutate } = useData<Appointment[]>(user?.isAdmin ? `/api/appointments?date=${dateStr}` : null)
 
   const loadAppointments = useCallback(() => {
     mutate()
   }, [mutate])
+
+  // Auto-iniciar e auto-concluir agendamentos
+  useEffect(() => {
+    if (!appointments.length) return
+
+    const checkAndUpdateAppointments = async () => {
+      const now = new Date()
+      
+      for (const apt of appointments) {
+        const startTime = new Date(apt.startDatetime)
+        const endTime = new Date(apt.endDatetime)
+        
+        // Auto-iniciar: Se chegou a hora de início e ainda não iniciou
+        if (apt.status === 'CONFIRMED' && now >= startTime && now < endTime) {
+          try {
+            await fetch(`/api/appointments/${apt.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'IN_PROGRESS' })
+            })
+          } catch (err) {
+            console.error('Erro ao auto-iniciar:', err)
+          }
+        }
+        
+        // Auto-concluir: Se passou o horário de término e ainda não concluiu
+        if (apt.status === 'IN_PROGRESS' && now >= endTime) {
+          try {
+            await fetch(`/api/appointments/${apt.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ status: 'COMPLETED' })
+            })
+          } catch (err) {
+            console.error('Erro ao auto-concluir:', err)
+          }
+        }
+      }
+    }
+
+    checkAndUpdateAppointments()
+    const interval = setInterval(checkAndUpdateAppointments, 30000) // Check a cada 30 segundos
+    
+    return () => clearInterval(interval)
+  }, [appointments])
 
   async function handleConfirmByBusiness(appointmentId: string) {
     setActionLoading(appointmentId)
@@ -261,8 +323,8 @@ export default function AgendaPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Agenda</h1>
-          <p className="text-gray-400 mt-1">Gerencie seus agendamentos e confirmações</p>
+          <h1 className="text-3xl font-bold text-white">Agenda do Dia</h1>
+          <p className="text-slate-400 mt-1">Gerencie seus agendamentos e confirmações</p>
         </div>
         <Link href="/agendamentos/novo">
           <Button>+ Novo Agendamento</Button>
@@ -333,161 +395,117 @@ export default function AgendaPage() {
             ))}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {timeSlots.map((slot) => (
               <div
                 key={slot.time}
-                className={`flex items-center gap-6 p-4 rounded-lg border transition-all ${
+                className={`rounded-2xl border transition-all ${
                   slot.isLunchBreak
-                    ? 'border-yellow-500/30 bg-yellow-900/10'
+                    ? 'border-orange-500/40 bg-gradient-to-r from-orange-900/20 to-orange-800/10'
                     : slot.appointment 
-                    ? slot.appointment.status === 'CONFIRMED_BY_CLIENT'
-                      ? 'border-blue-500/30 bg-blue-900/10'
-                      : slot.appointment.status === 'CONFIRMED'
-                      ? 'border-green-500/30 bg-green-900/10'
-                      : slot.appointment.status === 'RESCHEDULED'
-                      ? 'border-orange-500/30 bg-orange-900/10'
-                      : 'border-cyan-500/30 bg-cyan-900/10' 
+                    ? 'border-slate-700/60 bg-gradient-to-br from-slate-900/50 to-slate-950/50 hover:border-slate-600/80'
                     : slot.isBlocked
-                    ? 'border-gray-600/20 bg-gray-800/30'
-                    : 'border-gray-800 bg-gray-900/30 hover:bg-gray-800/50'
+                    ? 'border-slate-700/20 bg-slate-800/20'
+                    : 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/40 hover:border-slate-700'
                 }`}
               >
-                <span className={`text-lg font-semibold w-16 ${
-                  slot.isLunchBreak 
-                    ? 'text-yellow-500' 
-                    : slot.isBlocked && !slot.appointment 
-                    ? 'text-gray-600' 
-                    : 'text-white'
-                }`}>
-                  {slot.time}
-                </span>
-                
                 {slot.isLunchBreak ? (
-                  <span className="text-yellow-500 text-sm flex items-center gap-2">
-                    🍽️ Horário de Almoço
-                  </span>
-                ) : slot.appointment ? (
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-white">{slot.appointment.customer.name}</p>
-                          <Badge variant={statusVariants[slot.appointment.status]}>
-                            {statusLabels[slot.appointment.status]}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-gray-400">
-                          📱 {slot.appointment.customer.phone}
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          🚗 {slot.appointment.car.model} - {slot.appointment.car.plate}
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          🔧 {slot.appointment.appointmentServices.map(s => s.service.name).join(', ')}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          ⏰ {format(new Date(slot.appointment.startDatetime), 'HH:mm')} - {format(new Date(slot.appointment.endDatetime), 'HH:mm')}
-                          {' · '}
-                          💰 R$ {Number(slot.appointment.totalPrice).toFixed(2)}
-                        </p>
-                        
-                        {/* Mostrar info de confirmação */}
-                        {slot.appointment.confirmedByClientAt && (
-                          <p className="text-xs text-blue-400 mt-1">
-                            ✓ Cliente confirmou em {format(new Date(slot.appointment.confirmedByClientAt), "dd/MM 'às' HH:mm")}
-                          </p>
-                        )}
-                        {slot.appointment.confirmedByBusinessAt && (
-                          <p className="text-xs text-green-400">
-                            ✓ Você confirmou em {format(new Date(slot.appointment.confirmedByBusinessAt), "dd/MM 'às' HH:mm")}
-                          </p>
-                        )}
-                        {slot.appointment.status === 'RESCHEDULED' && slot.appointment.suggestedDatetime && (
-                          <p className="text-xs text-orange-400 mt-1">
-                            📅 Horário sugerido: {format(new Date(slot.appointment.suggestedDatetime), "dd/MM 'às' HH:mm")}
-                          </p>
-                        )}
-                      </div>
-                      
-                      {/* Ações baseadas no status */}
-                      <div className="flex flex-col gap-2">
-                        {/* Cliente confirmou, estética pode confirmar ou sugerir reagendamento */}
-                        {slot.appointment.status === 'CONFIRMED_BY_CLIENT' && (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="success"
-                              onClick={() => handleConfirmByBusiness(slot.appointment!.id)}
-                              disabled={actionLoading === slot.appointment!.id}
-                            >
-                              {actionLoading === slot.appointment!.id ? '...' : '✓ Confirmar'}
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="secondary"
-                              onClick={() => openRescheduleModal(slot.appointment!)}
-                              disabled={actionLoading === slot.appointment!.id}
-                            >
-                              📅 Sugerir Outro Horário
-                            </Button>
-                          </>
-                        )}
-                        
-                        {/* Agendamento confirmado, pode iniciar ou marcar não compareceu */}
-                        {slot.appointment.status === 'CONFIRMED' && (
-                          <>
-                            <Button 
-                              size="sm" 
-                              variant="success"
-                              onClick={() => handleStatusChange(slot.appointment!.id, 'IN_PROGRESS')}
-                              disabled={actionLoading === slot.appointment!.id}
-                            >
-                              {actionLoading === slot.appointment!.id ? '...' : '▶ Iniciar'}
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="danger"
-                              onClick={() => handleStatusChange(slot.appointment!.id, 'NO_SHOW')}
-                              disabled={actionLoading === slot.appointment!.id}
-                            >
-                              {actionLoading === slot.appointment!.id ? '...' : '✗ Não Compareceu'}
-                            </Button>
-                          </>
-                        )}
-                        
-                        {/* Em andamento, pode concluir */}
-                        {slot.appointment.status === 'IN_PROGRESS' && (
-                          <Button 
-                            size="sm" 
-                            variant="success"
-                            onClick={() => handleStatusChange(slot.appointment!.id, 'COMPLETED')}
-                            disabled={actionLoading === slot.appointment!.id}
-                          >
-                            {actionLoading === slot.appointment!.id ? '...' : '✓ Concluir'}
-                          </Button>
-                        )}
-                        
-                        {/* Pendente ou aguardando, pode cancelar */}
-                        {['PENDING', 'CONFIRMED_BY_CLIENT', 'RESCHEDULED'].includes(slot.appointment.status) && (
-                          <Button 
-                            size="sm" 
-                            variant="danger"
-                            onClick={() => handleStatusChange(slot.appointment!.id, 'CANCELED')}
-                            disabled={actionLoading === slot.appointment!.id}
-                          >
-                            {actionLoading === slot.appointment!.id ? '...' : '✗ Cancelar'}
-                          </Button>
-                        )}
+                  // Lunch Break Row
+                  <div className="p-4 flex items-center gap-4">
+                    <div className="text-2xl font-bold text-orange-400 w-20 text-center">
+                      {slot.time}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-orange-500 text-lg">🍽️</span>
+                        <span className="text-orange-400 font-semibold">Horário de Almoço</span>
                       </div>
                     </div>
                   </div>
+                ) : slot.appointment ? (
+                  // Appointment Row
+                  <div className="p-4">
+                    <div className="grid grid-cols-1 lg:grid-cols-[60px_1fr_1fr_auto] gap-4">
+                      {/* Time */}
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-white">{slot.time}</div>
+                      </div>
+
+                      {/* Client Info */}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-white text-sm">{slot.appointment.customer.name}</span>
+                          <Badge variant={statusVariants[slot.appointment.status]} className="text-xs">
+                            {statusLabels[slot.appointment.status]}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-slate-400">📱 {slot.appointment.customer.phone}</div>
+                      </div>
+
+                      {/* Service Info */}
+                      <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-300">
+                          {slot.appointment.appointmentServices.map(s => s.service.name).join(' + ')}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          🚗 {slot.appointment.car.model} · {slot.appointment.car.plate}
+                        </div>
+                        <div className="text-xs text-slate-400">
+                          ⏰ {format(new Date(slot.appointment.startDatetime), 'HH:mm')} - {format(new Date(slot.appointment.endDatetime), 'HH:mm')} · 💰 R$ {Number(slot.appointment.totalPrice).toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Menu 3-pontinhos */}
+                      <AppointmentMenu 
+                        appointment={slot.appointment}
+                        actionLoading={actionLoading}
+                        onConfirm={() => handleConfirmByBusiness(slot.appointment!.id)}
+                        onReschedule={() => openRescheduleModal(slot.appointment!)}
+                        onNoShow={() => handleStatusChange(slot.appointment!.id, 'NO_SHOW')}
+                      />
+                    </div>
+
+                    {/* Extra Info */}
+                    <div className="mt-3 pt-3 border-t border-slate-700/40 space-y-1">
+                      {slot.appointment.confirmedByClientAt && (
+                        <div className="text-xs text-blue-400">
+                          ✓ Cliente confirmou em {format(new Date(slot.appointment.confirmedByClientAt), "dd/MM 'às' HH:mm")}
+                        </div>
+                      )}
+                      {slot.appointment.confirmedByBusinessAt && (
+                        <div className="text-xs text-green-400">
+                          ✓ Você confirmou em {format(new Date(slot.appointment.confirmedByBusinessAt), "dd/MM 'às' HH:mm")}
+                        </div>
+                      )}
+                      {slot.appointment.status === 'RESCHEDULED' && slot.appointment.suggestedDatetime && (
+                        <div className="text-xs text-orange-400">
+                          📅 Horário sugerido: {format(new Date(slot.appointment.suggestedDatetime), "dd/MM 'às' HH:mm")}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 ) : slot.isBlocked ? (
-                  <span className="text-gray-500 text-sm">
-                    ⏳ Em atendimento ({slot.blockedBy?.customer.name})
-                  </span>
+                  // Blocked Slot
+                  <div className="p-4 flex items-center gap-4">
+                    <div className="text-xl font-bold text-slate-500 w-16 text-center">
+                      {slot.time}
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-slate-500 text-sm">
+                        ⏳ Em atendimento ({slot.blockedBy?.customer.name})
+                      </span>
+                    </div>
+                  </div>
                 ) : (
-                  <span className="text-gray-500">Disponível</span>
+                  // Available Slot
+                  <div className="p-4 flex items-center gap-4">
+                    <div className="text-xl font-bold text-slate-400 w-16 text-center">
+                      {slot.time}
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-slate-500 text-sm">Disponível</span>
+                    </div>
+                  </div>
                 )}
               </div>
             ))}
