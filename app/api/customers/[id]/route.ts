@@ -12,11 +12,18 @@ export async function GET(
     const isSelf = auth.customerId === params.id
     const isAdmin = auth.isAdmin
 
+    console.log('=== GET /api/customers/[id] ===')
+    console.log('Requested ID:', params.id)
+    console.log('Auth customerId:', auth.customerId)
+    console.log('Is Admin:', isAdmin)
+    console.log('Is Self:', isSelf)
+
     const customer = await prisma.customer.findUnique({
       where: { id: params.id },
       include: {
         cars: true,
-        ...(isAdmin
+        // Retorna appointments para admin OU para o próprio cliente
+        ...(isAdmin || isSelf
           ? {
               appointments: {
                 include: {
@@ -35,6 +42,10 @@ export async function GET(
           : {})
       }
     })
+
+    console.log('Customer found:', !!customer)
+    console.log('Appointments count:', customer?.appointments?.length)
+    console.log('================================')
 
     if (!customer) {
       return NextResponse.json(

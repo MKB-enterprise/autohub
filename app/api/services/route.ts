@@ -15,6 +15,9 @@ export async function GET(request: NextRequest) {
 
     const services = await prisma.service.findMany({
       where,
+      include: {
+        category: true
+      },
       orderBy: {
         name: 'asc'
       }
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { name, description, durationMinutes, price, isActive, serviceGroup } = body
+    const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId } = body
 
     if (!name || !durationMinutes || !price) {
       return NextResponse.json(
@@ -57,6 +60,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (categoryId) {
+      const categoryExists = await prisma.category.findUnique({ where: { id: categoryId } })
+      if (!categoryExists) {
+        return NextResponse.json({ error: 'Categoria não encontrada' }, { status: 400 })
+      }
+    }
+
     const service = await prisma.service.create({
       data: {
         name,
@@ -64,7 +74,11 @@ export async function POST(request: NextRequest) {
         durationMinutes,
         price,
         isActive: isActive !== undefined ? isActive : true,
-        serviceGroup: serviceGroup || null
+        serviceGroup: serviceGroup || null,
+        categoryId: categoryId || null
+      },
+      include: {
+        category: true
       }
     })
 

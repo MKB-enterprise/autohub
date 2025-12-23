@@ -10,6 +10,7 @@ const adminMenuItems = [
   { href: '/clientes', label: 'Clientes', icon: '👥' },
   { href: '/carros', label: 'Carros', icon: '🚗' },
   { href: '/servicos', label: 'Serviços', icon: '🔧' },
+  { href: '/categorias', label: 'Categorias', icon: '🏷️' },
   { href: '/configuracoes', label: 'Configurações', icon: '⚙️' },
 ]
 

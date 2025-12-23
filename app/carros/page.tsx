@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -33,15 +34,12 @@ interface Customer {
 
 export default function CarrosPage() {
   const { user } = useAuth()
+  const router = useRouter()
   const { data: cars = [], isLoading: loading, mutate } = useData<Car[]>('/api/cars')
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-
-  const loadCars = useCallback(() => {
-    mutate()
-  }, [mutate])
 
   function getCarStatus(car: Car): { label: string; variant: 'success' | 'warning' | 'default' } {
     const hasInProgress = car.appointments.some(a => a.status === 'IN_PROGRESS')
@@ -164,15 +162,19 @@ export default function CarrosPage() {
         )}
       </Card>
 
-      <QuickCarRegistration
-        isOpen={showNewModal}
-        onClose={() => setShowNewModal(false)}
-        onSuccess={() => {
-          setSuccess('Veículo cadastrado com sucesso!')
-          loadCars()
-        }}
-        customerId={user?.id || ''}
-      />
+      {user && (
+        <QuickCarRegistration
+          isOpen={showNewModal}
+          onClose={() => setShowNewModal(false)}
+          onSuccess={() => {
+            setShowNewModal(false)
+            setSuccess('Veículo cadastrado com sucesso!')
+            router.refresh()
+            mutate()
+          }}
+          customerId={user.id}
+        />
+      )}
     </div>
   )
 }

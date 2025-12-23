@@ -12,8 +12,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
     const status = searchParams.get('status')
+    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined
 
-    console.log('GET appointments - Parâmetros:', { date, status })
+    console.log('GET appointments - Parâmetros:', { date, status, limit })
 
     const where: any = {}
 
@@ -54,8 +55,9 @@ export async function GET(request: NextRequest) {
         }
       },
       orderBy: {
-        startDatetime: 'asc'
-      }
+        startDatetime: 'desc'
+      },
+      take: limit
     })
 
     console.log('Agendamentos encontrados:', appointments.length)

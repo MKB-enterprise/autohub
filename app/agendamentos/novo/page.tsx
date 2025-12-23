@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { format } from 'date-fns'
@@ -14,6 +14,8 @@ import { Alert } from '@/components/ui/Alert'
 import { Loading } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
 import { ServiceSelector } from '@/components/ServiceSelector'
+import Collapsible from '@/components/ui/Collapsible'
+import GuidedBooking from '@/components/GuidedBooking'
 import QuickCarRegistration from '@/components/QuickCarRegistration'
 
 interface Customer {
@@ -113,6 +115,8 @@ export default function NovoAgendamentoPage() {
     }
   }, [selectedCustomerId, customers])
 
+  // Removed auto-open behavior for car modal per request
+
   // Calcular duração e preço total quando serviços mudam
   useEffect(() => {
     const duration = selectedServices.reduce((sum, serviceId) => {
@@ -125,21 +129,11 @@ export default function NovoAgendamentoPage() {
       return sum + Number(service?.price || 0)
     }, 0)
 
-    console.log('Serviços selecionados:', selectedServices.length)
-    console.log('Duração total:', duration, 'minutos')
-    console.log('Preço total:', price)
-
     setTotalDuration(duration)
     setTotalPrice(price)
   }, [selectedServices, services])
 
-  useEffect(() => {
-    if (selectedDate && selectedServices.length > 0) {
-      checkAvailability()
-    } else {
-      setAvailableSlots([])
-    }
-  }, [selectedDate, selectedServices])
+  // Removed: checkAvailability useEffect - GuidedBooking already handles this
 
   async function loadInitialData() {
     try {
@@ -300,11 +294,27 @@ export default function NovoAgendamentoPage() {
     }
   }
 
-  function handleCarRegistrationSuccess() {
-    // Recarregar clientes e seus carros após novo carro ser criado
+  async function handleCarRegistrationSuccess() {
     setShowNewCarModal(false)
-    if (selectedCustomerId) {
-      loadInitialData()
+    
+    // Buscar os dados atualizados
+    try {
+      const customersRes = await fetch('/api/customers')
+      if (customersRes.ok) {
+        const customersData = await customersRes.json()
+        setCustomers(customersData)
+        
+        // Atualizar a lista de carros imediatamente
+        const currentCustomerId = selectedCustomerId || user?.id
+        if (currentCustomerId) {
+          const customer = customersData.find((c: Customer) => c.id === currentCustomerId)
+          if (customer) {
+            setCars(customer.cars || [])
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar dados:', err)
     }
   }
 
@@ -323,7 +333,27 @@ export default function NovoAgendamentoPage() {
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
+      {/* Guided flow for logged users: objective → service → date/period/time */}
+      <Card title="Seleção guiada">
+        <GuidedBooking
+          onContinue={({ services: guidedServices, date, time }) => {
+            const ids = guidedServices.map(s => s.id)
+            setSelectedServices(ids)
+            setValue('date', date)
+            setValue('time', time)
+            const duration = guidedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
+            const price = guidedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
+            setTotalDuration(duration)
+            setTotalPrice(price)
+            setError(null)
+          }}
+        />
+      </Card>
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Hidden fields to keep date/time in form state */}
+        <input type="hidden" {...register('date', { required: 'Data é obrigatória' })} />
+        <input type="hidden" {...register('time', { required: 'Horário é obrigatório' })} />
         <Card title="Dados do Cliente">
           <div className="space-y-4">
             {user?.isAdmin ? (
@@ -371,70 +401,27 @@ export default function NovoAgendamentoPage() {
           </div>
         </Card>
 
-        <Card title="Serviços">
-          <ServiceSelector
-            services={services}
-            selected={selectedServices}
-            onChange={setSelectedServices}
-            totalDuration={totalDuration}
-            totalPrice={totalPrice}
-            showHint={false}
+        {/* Advanced selection (optional): keep available for admins who want overrides */}
+        {user?.isAdmin && (
+          <Card title="Serviços (opcional)">
+            <ServiceSelector
+              services={services}
+              selected={selectedServices}
+              onChange={setSelectedServices}
+              totalDuration={totalDuration}
+              totalPrice={totalPrice}
+              showHint={false}
+            />
+          </Card>
+        )}
+
+        <Card title="Observações">
+          <Textarea
+            label="Observações"
+            {...register('notes')}
+            rows={3}
+            placeholder="Observações sobre o agendamento..."
           />
-        </Card>
-
-        <Card title="Data e Horário">
-          <div className="space-y-4">
-            <Input
-              type="date"
-              label="Data"
-              {...register('date', { required: 'Data é obrigatória' })}
-              min={format(new Date(), 'yyyy-MM-dd')}
-              error={errors.date?.message}
-            />
-
-            {checkingAvailability ? (
-              <Loading />
-            ) : availableSlots.length > 0 ? (
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Horários Disponíveis <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {availableSlots.map((slot: any) => {
-                    // Pegar hora local do slot (que vem em UTC)
-                    const slotDate = new Date(slot)
-                    const slotTime = slotDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', hour12: false })
-                    return (
-                      <label
-                        key={slot}
-                        className="flex items-center justify-center p-3 border border-gray-700 rounded cursor-pointer hover:bg-gray-800/50 hover:border-cyan-500/30 transition-colors bg-gray-900/50 text-white"
-                      >
-                        <input
-                          type="radio"
-                          {...register('time', { required: 'Horário é obrigatório' })}
-                          value={slotTime}
-                          className="mr-2 accent-cyan-500"
-                        />
-                        {slotTime}
-                      </label>
-                    )
-                  })}
-                </div>
-                {errors.time && (
-                  <p className="mt-1 text-sm text-red-600">{errors.time.message}</p>
-                )}
-              </div>
-            ) : selectedDate && selectedServices.length > 0 ? (
-              <Alert type="warning" message="Não há horários disponíveis para esta data. Tente outra data." />
-            ) : null}
-
-            <Textarea
-              label="Observações"
-              {...register('notes')}
-              rows={3}
-              placeholder="Observações sobre o agendamento..."
-            />
-          </div>
         </Card>
 
         <div className="flex gap-4">

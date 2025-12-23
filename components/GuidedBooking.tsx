@@ -1,14 +1,21 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
-import { format, addDays } from 'date-fns'
+import { format, addDays, isToday, isTomorrow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Modal } from '@/components/ui/Modal'
-import QuickCarRegistration from '@/components/QuickCarRegistration'
+import { Badge } from '@/components/ui/Badge'
+import { LottieAnimation } from '@/components/ui/LottieAnimation'
+// Quick car registration happens in the appointment page, not here
 import { useAuth } from '@/lib/AuthContext'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import carGarageAnimation from '@/public/animations/Car Garage animation.json'
+import interiorAnimation from '@/public/animations/Interior detailing.json'
+import exteriorAnimation from '@/public/animations/Exterior detail.json'
+import nanoAnimation from '@/public/animations/Nanotechnology.json'
+import washerAnimation from '@/public/animations/Washer cleaning street.json'
 
 // Types for services coming from API
 type Service = {
@@ -20,14 +27,26 @@ type Service = {
   serviceGroup?: string | null
 }
 
-type Objective = 'CLEAN' | 'RENEW' | 'PROTECT' | 'QUICK'
+type Need = 'INTERIOR' | 'EXTERIOR' | 'COMPLETE' | 'QUICK' | 'POLISH'
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
 }
 
-export default function GuidedBooking() {
+const groupMeta: Record<string, { label: string; variant: 'info' | 'success' | 'warning' | 'danger' | 'default' }> = {
+  interior: { label: 'Interior', variant: 'info' },
+  exterior: { label: 'Exterior', variant: 'success' },
+  polimento: { label: 'Polimento', variant: 'warning' },
+  polishing: { label: 'Polimento', variant: 'warning' }
+}
+
+type GuidedBookingProps = {
+  onContinue?: (data: { services: Service[]; date: string; time: string }) => void
+}
+
+export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useAuth()
 
   // Data state
@@ -36,8 +55,9 @@ export default function GuidedBooking() {
   const [error, setError] = useState<string | null>(null)
 
   // Flow state
-  const [objective, setObjective] = useState<Objective | null>(null)
-  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
+  const [need, setNeed] = useState<Need | null>(null)
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
 
   const [stepDate, setStepDate] = useState<'TODAY' | 'TOMORROW' | 'OTHER' | null>(null)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -45,15 +65,11 @@ export default function GuidedBooking() {
   const [availableTimes, setAvailableTimes] = useState<string[]>([])
   const [time, setTime] = useState<string | null>(null)
   const [loadingTimes, setLoadingTimes] = useState(false)
+  const [showSelection, setShowSelection] = useState(false)
+  const [lastRemoved, setLastRemoved] = useState<null | { id: string; name: string }>(null)
+  const [undoTimer, setUndoTimer] = useState<number | null>(null)
 
-  // Helper modal
-  const [showHelper, setShowHelper] = useState(false)
-  const [helperStep, setHelperStep] = useState(1)
-  const [helperAnswers, setHelperAnswers] = useState<{clean: string | null; goal: string | null; use: string | null}>({ clean: null, goal: null, use: null })
-
-  // Car modal for logged-in users without car (best-effort)
-  const [showCarModal, setShowCarModal] = useState(false)
-  const [hasCars, setHasCars] = useState<boolean | null>(null)
+  // Car registration is handled on the /agendamentos/novo page
 
   useEffect(() => {
     const load = async () => {
@@ -71,50 +87,96 @@ export default function GuidedBooking() {
     load()
   }, [])
 
-  // Filter services by objective
-  const filteredServices = useMemo(() => {
-    if (!objective) return []
+  // Initialize selection/date/time from URL params when services are available
+  useEffect(() => {
+    if (!services.length) return
+    const raw = searchParams?.get('services') || ''
+    if (raw) {
+      const ids = raw.split(',').filter(Boolean)
+      const valid = ids.filter(id => services.some(s => s.id === id))
+      if (valid.length) {
+        setSelectedServiceIds(valid)
+      }
+    }
+    const dateStr = searchParams?.get('date')
+    if (dateStr) {
+      const parsed = new Date(`${dateStr}T00:00:00`)
+      if (!isNaN(parsed.getTime())) {
+        setSelectedDate(parsed)
+        if (isToday(parsed)) setStepDate('TODAY')
+        else if (isTomorrow(parsed)) setStepDate('TOMORROW')
+        else setStepDate('OTHER')
+      }
+    }
+    const t = searchParams?.get('time')
+    if (t) {
+      setTime(t)
+      const [hStr] = t.split(':')
+      const h = parseInt(hStr, 10)
+      if (h >= 6 && h < 12) setPeriod('MORNING')
+      else if (h >= 12 && h < 18) setPeriod('AFTERNOON')
+      else if (h >= 18 && h <= 21) setPeriod('EVENING')
+    }
+  }, [services, searchParams])
 
-    const keywordsByObjective: Record<Objective, string[]> = {
-      CLEAN: ['limpeza', 'lavagem', 'higienização', 'interior', 'externo', 'completa', 'express'],
-      RENEW: ['polimento', 'brilho', 'riscos', 'cristalização', 'revitalização', 'vitrificação'],
-      PROTECT: ['cerâmica', 'ceramica', 'protetor', 'proteção', 'selante', 'nanotec'],
-      QUICK: ['rápida', 'express', 'básica', 'basica']
+  // Selected services and summary (defined early to avoid TDZ issues)
+  const selectedServices = services.filter(s => selectedServiceIds.includes(s.id))
+  const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
+  const totalDuration = selectedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
+
+  // In embedded mode, handoff only at confirmation step
+  useEffect(() => {
+    if (!onContinue) return
+    if (currentStep !== 3) return
+    if (!selectedServices.length || !selectedDate || !time) return
+    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+    onContinue({ services: selectedServices, date: dateStr, time })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep])
+
+  function resetScheduling() {
+    setStepDate(null)
+    setSelectedDate(null)
+    setPeriod(null)
+    setAvailableTimes([])
+    setTime(null)
+  }
+
+  // Filter services by need
+  const filteredServices = useMemo(() => {
+    if (!need) return []
+
+    // Map need to service groups
+    const groupsByNeed: Record<Need, string[]> = {
+      INTERIOR: ['interior'],
+      EXTERIOR: ['exterior'],
+      COMPLETE: ['interior', 'exterior'],
+      QUICK: ['interior', 'exterior'],
+      POLISH: ['polimento', 'polishing']
     }
 
-    const kws = keywordsByObjective[objective]
-
-    const scored = services.map(s => {
-      const lowerName = (s.name || '').toLowerCase()
-      const lowerDesc = (s.description || '').toLowerCase()
-      const score = kws.reduce((acc, kw) => acc + (lowerName.includes(kw) ? 2 : 0) + (lowerDesc.includes(kw) ? 1 : 0), 0)
-      return { s, score }
+    const targetGroups = groupsByNeed[need]
+    
+    const filtered = services.filter(s => {
+      const group = (s.serviceGroup || '').toLowerCase()
+      return targetGroups.includes(group)
     })
-    .filter(x => x.score > 0 || objective === 'CLEAN' || objective === 'QUICK')
 
-    if (scored.length === 0) return services // fallback: show all
-
-    return scored.sort((a,b) => b.score - a.score).map(x => x.s)
-  }, [objective, services])
-
-  // Recommended service heuristic
-  const recommendedServiceId = useMemo(() => {
-    if (!objective || filteredServices.length === 0) return null
-    // Choose best score = already sorted; if not, pick mid-price service
-    const list = filteredServices
-    const mid = Math.floor(list.length/2)
-    return list[mid]?.id || list[0]?.id || null
-  }, [objective, filteredServices])
+    return filtered.sort((a, b) => a.price - b.price)
+  }, [need, services])
 
   // Availability when date+period selected
   useEffect(() => {
     const fetchTimes = async () => {
-      if (!selectedServiceId || !selectedDate || !period) return
+      if (!selectedServiceIds.length || !selectedDate || !period) {
+        setAvailableTimes([])
+        return
+      }
       try {
         setLoadingTimes(true)
         const body = {
           date: format(selectedDate, 'yyyy-MM-dd'),
-          serviceIds: [selectedServiceId],
+          serviceIds: selectedServiceIds,
           suggestAlternatives: false
         }
         const res = await fetch('/api/appointments/availability', {
@@ -134,256 +196,570 @@ export default function GuidedBooking() {
           if (period === 'AFTERNOON') return h >= 12 && h < 18
           return h >= 18 && h <= 21
         })
-        setAvailableTimes(filtered.slice(0,3))
-        setTime(null)
+        setAvailableTimes(filtered)
+        // Preserve selected time if it remains available; otherwise clear
+        if (time && !filtered.includes(time)) {
+          setTime(null)
+        }
+      } catch (error) {
+        console.error('Erro ao buscar horários:', error)
+        setAvailableTimes([])
       } finally {
         setLoadingTimes(false)
       }
     }
     fetchTimes()
-  }, [selectedServiceId, selectedDate, period])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedServiceIds, selectedDate, period])
 
-  // Helper flow choose recommended
-  function finishHelper() {
-    // Simple rule-based mapping
-    const { clean, goal } = helperAnswers
-    let target: Objective = 'CLEAN'
-    if (goal === 'Proteção') target = 'PROTECT'
-    else if (goal === 'Capricho') target = 'RENEW'
-    else if (goal === 'Rapidez') target = 'QUICK'
-    else if (clean === 'Muito sujo') target = 'CLEAN'
-    setObjective(target)
-    setShowHelper(false)
+  // Toggle service selection; reset downstream state when the set changes
+  function toggleService(serviceId: string) {
+    const svc = services.find(s => s.id === serviceId)
+    const targetGroup = (svc?.serviceGroup || '').toLowerCase() || null
+
+    setSelectedServiceIds(prev => {
+      const exists = prev.includes(serviceId)
+      // If already selected, just remove
+      if (exists) {
+        resetScheduling()
+        setLastRemoved({ id: serviceId, name: svc?.name || 'Serviço' })
+        if (undoTimer) clearTimeout(undoTimer)
+        const timer = window.setTimeout(() => setLastRemoved(null), 5000)
+        setUndoTimer(timer)
+        return prev.filter(id => id !== serviceId)
+      }
+
+      // Enforce one service per category/group
+      const next = prev.filter(id => {
+        if (!targetGroup) return true
+        const s = services.find(x => x.id === id)
+        const g = (s?.serviceGroup || '').toLowerCase() || null
+        return g !== targetGroup
+      })
+      const updated = [...next, serviceId]
+      // If the selection set changes, reset scheduling so availability recalculates
+      resetScheduling()
+      setCurrentStep(1)
+      return updated
+    })
   }
 
-  // Footer summary
-  const selectedService = services.find(s => s.id === selectedServiceId) || null
-  const totalPrice = selectedService?.price || 0
-  const totalDuration = selectedService?.durationMinutes || 0
+  function removeService(id: string) {
+    const svc = services.find(s => s.id === id)
+    setSelectedServiceIds(prev => prev.filter(x => x !== id))
+    resetScheduling()
+    setLastRemoved({ id, name: svc?.name || 'Serviço' })
+    if (undoTimer) clearTimeout(undoTimer)
+    const timer = window.setTimeout(() => setLastRemoved(null), 5000)
+    setUndoTimer(timer)
+  }
 
-  // Continue action
-  async function handleContinue() {
-    if (!selectedService || !selectedDate || !time) return
+  function undoRemove() {
+    if (!lastRemoved) return
+    const id = lastRemoved.id
+    setLastRemoved(null)
+    if (undoTimer) {
+      clearTimeout(undoTimer)
+      setUndoTimer(null)
+    }
+    // Re-add using the same rules as toggle
+    const svc = services.find(s => s.id === id)
+    const targetGroup = (svc?.serviceGroup || '').toLowerCase() || null
+    setSelectedServiceIds(prev => {
+      const next = prev.filter(x => {
+        if (!targetGroup) return true
+        const s = services.find(xx => xx.id === x)
+        return (s?.serviceGroup || '').toLowerCase() !== targetGroup
+      })
+      return [...next, id]
+    })
+    resetScheduling()
+    setCurrentStep(1)
+  }
 
-    // If not logged in, send to login with redirect
+  function getGroupMetaByService(service: Service) {
+    const group = (service.serviceGroup || '').toLowerCase()
+    return groupMeta[group] || { label: 'Outro', variant: 'default' as const }
+  }
+
+  // Helper function to describe service result for customer
+  function getServiceResultDescription(service: Service): string {
+    const group = (service.serviceGroup || '').toLowerCase()
+    
+    if (group === 'interior') return 'Ambiente interno mais limpo e profissional'
+    if (group === 'exterior') return 'Aparência externa renovada e brilhante'
+    if (group === 'polimento' || group === 'polishing') return 'Visual melhorado com acabamento refinado'
+    
+    return 'Resultado profissional e cuidadoso'
+  }
+
+  // Step controls and final continue
+  function canProceed(step: 1 | 2 | 3) {
+    if (step === 1) return selectedServiceIds.length > 0
+    if (step === 2) return !!(selectedDate && time)
+    return true
+  }
+
+  function goNext() {
+    if (currentStep === 1) {
+      if (canProceed(1)) setCurrentStep(2)
+      return
+    }
+    if (currentStep === 2) {
+      if (canProceed(2)) setCurrentStep(3)
+      return
+    }
+  }
+
+  function goBack() {
+    if (currentStep === 3) { setCurrentStep(2); return }
+    if (currentStep === 2) { setCurrentStep(1); return }
+  }
+
+  async function handleConfirm() {
+    if (!selectedServices.length || !selectedDate || !time) return
+    const dateStr = format(selectedDate, 'yyyy-MM-dd')
+
+    if (onContinue) {
+      onContinue({ services: selectedServices, date: dateStr, time })
+      return
+    }
     if (!user) {
       const qs = new URLSearchParams()
       qs.set('redirect', '/agendamentos/novo')
-      qs.set('date', format(selectedDate, 'yyyy-MM-dd'))
+      qs.set('date', dateStr)
       qs.set('time', time)
-      qs.set('services', selectedService.id)
+      qs.set('services', selectedServiceIds.join(','))
       router.push(`/login?${qs.toString()}`)
       return
     }
-
-    // Check cars to decide if needs registration modal
-    if (hasCars === null) {
-      try {
-        const res = await fetch('/api/cars')
-        if (res.ok) {
-          const arr = await res.json()
-          if (!Array.isArray(arr) || arr.length === 0) {
-            setShowCarModal(true)
-            return
-          }
-        }
-      } catch {}
-    }
-
     const qs = new URLSearchParams()
-    qs.set('date', format(selectedDate, 'yyyy-MM-dd'))
+    qs.set('date', dateStr)
     qs.set('time', time)
-    qs.set('services', selectedService.id)
+    qs.set('services', selectedServiceIds.join(','))
     router.push(`/agendamentos/novo?${qs.toString()}`)
   }
 
   return (
-    <div className="space-y-10">
-      {/* STEP 1 - Objective */}
-      <section>
-        <h3 className="text-2xl font-bold text-white mb-4">O que você quer fazer no seu carro?</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {([
-            { key: 'CLEAN', title: 'Limpeza', desc: 'Seu carro limpo por dentro e por fora', emoji: '🧼' },
-            { key: 'RENEW', title: 'Deixar como novo', desc: 'Brilho, remoção de riscos leves e aparência renovada', emoji: '✨' },
-            { key: 'PROTECT', title: 'Proteger a pintura', desc: 'Proteção contra sol, chuva e sujeira por mais tempo', emoji: '🛡️' },
-            { key: 'QUICK', title: 'Algo rápido', desc: 'Uma lavagem rápida para o dia a dia', emoji: '🚗' },
-          ] as const).map(opt => (
-            <button
-              key={opt.key}
-              onClick={() => { setObjective(opt.key as Objective); setSelectedServiceId(null) }}
-              className={cx(
-                'rounded-2xl text-left p-5 border transition focus:outline-none focus:ring-2 focus:ring-blue-500',
-                'bg-gray-800/60 border-gray-700 hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10',
-                objective === (opt.key as any) && 'border-blue-600 bg-blue-600/10'
-              )}
-            >
-              <div className="text-3xl mb-2">{opt.emoji}</div>
-              <div className="text-white font-semibold text-lg">{opt.title}</div>
-              <div className="text-gray-300 text-sm mt-1">{opt.desc}</div>
-            </button>
+    <div className="space-y-8 pb-28">
+      {/* Stepper */}
+      <nav className="sticky top-[60px] z-30 bg-gradient-to-r from-gray-950/70 to-gray-900/70 backdrop-blur border border-gray-800/60 rounded-2xl p-4 mb-2 shadow-lg shadow-purple-500/5">
+        <ol className="grid grid-cols-3 gap-3 text-xs md:text-sm font-semibold">
+          {[
+            { id: 1, label: 'Serviços' },
+            { id: 2, label: 'Data & Hora' },
+            { id: 3, label: 'Confirmar' }
+          ].map(step => (
+            <li key={step.id}>
+              <button
+                className={cx(
+                  'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200',
+                  currentStep === step.id 
+                    ? 'border-purple-500 bg-purple-500/15 text-white shadow-lg shadow-purple-500/20' 
+                    : step.id < currentStep 
+                    ? 'border-green-500/30 bg-green-500/5 text-green-400'
+                    : 'border-gray-700 bg-gray-800/40 text-gray-400 hover:border-gray-600'
+                )}
+                onClick={() => step.id < currentStep ? setCurrentStep(step.id as 1|2|3) : undefined}
+                aria-current={currentStep === step.id ? 'step' : undefined}
+              >
+                <span className={cx(
+                  'inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-bold transition-all',
+                  currentStep === step.id && 'border-purple-400 bg-purple-500/30 text-purple-300',
+                  step.id < currentStep && 'border-green-500 bg-green-500/20 text-green-400'
+                )}>
+                  {step.id < currentStep ? '✓' : step.id}
+                </span>
+                <span className="hidden sm:inline">{step.label}</span>
+              </button>
+            </li>
           ))}
-        </div>
-        <div className="mt-4">
-          <Button variant="secondary" onClick={() => { setShowHelper(true); setHelperStep(1); setHelperAnswers({ clean: null, goal: null, use: null }) }}>Me ajude a escolher</Button>
-        </div>
-      </section>
+        </ol>
+      </nav>
+      {/* STEP 1 - What do you want for your car? */}
+      {currentStep === 1 && !need && (
+        <section className="space-y-8">
+          <div className="flex justify-center mb-8">
+            <LottieAnimation 
+              animationData={carGarageAnimation} 
+              className="w-64 h-64"
+              loop={true}
+            />
+          </div>
+          <div className="text-center space-y-2">
+            <h3 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">O que você quer para o seu carro?</h3>
+            <p className="text-gray-400 text-base">Escolha uma categoria e vamos encontrar o serviço perfeito</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {([
+              { key: 'COMPLETE', title: 'Cuidado completo', desc: 'Interna e externa', emoji: '🌟' },
+              { key: 'INTERIOR', title: 'Interior', desc: 'Higiene e conforto', emoji: '🪑' },
+              { key: 'EXTERIOR', title: 'Exterior', desc: 'Brilho e proteção', emoji: '✨' },
+              { key: 'QUICK', title: 'Solução rápida', desc: 'Express', emoji: '⚡' },
+              { key: 'POLISH', title: 'Polimento', desc: 'Acabamento premium', emoji: '💎' },
+            ] as const).map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setNeed(opt.key as Need)}
+                className="group rounded-2xl text-left p-6 border transition-all duration-300 bg-gradient-to-br from-gray-800/40 to-gray-900/60 border-gray-700 hover:border-purple-500 hover:from-purple-900/20 hover:to-gray-900/40 hover:shadow-xl hover:shadow-purple-500/10 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+              >
+                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{opt.emoji}</div>
+                <div className="text-white font-semibold text-base leading-tight">{opt.title}</div>
+                <div className="text-gray-400 text-sm mt-2">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
-      {/* STEP 2 - Services filtered */}
-      {objective && (
-        <section>
-          <h3 className="text-2xl font-bold text-white mb-4">Serviços para seu objetivo</h3>
-          {loadingServices && <div className="text-gray-300">Carregando serviços...</div>}
-          {!loadingServices && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* STEP 2 - Service selection */}
+      {currentStep === 1 && need && (
+        <section className="space-y-8">
+          <div className="flex items-center gap-6 mb-8">
+            <div className="flex-shrink-0">
+              <LottieAnimation 
+                animationData={
+                  need === 'INTERIOR' ? interiorAnimation :
+                  need === 'EXTERIOR' ? exteriorAnimation :
+                  need === 'POLISH' ? nanoAnimation :
+                  need === 'QUICK' ? washerAnimation :
+                  carGarageAnimation
+                } 
+                className="w-32 h-32"
+                loop={true}
+              />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold text-white">Escolha o serviço</h3>
+              <p className="text-gray-400 mt-1 text-sm">
+                {need === 'INTERIOR' && 'Deixe o interior impecável e confortável'}
+                {need === 'EXTERIOR' && 'Renove a beleza e proteção externa'}
+                {need === 'POLISH' && 'Acabamento premium com polimentos especiais'}
+                {need === 'QUICK' && 'Serviços rápidos e eficientes'}
+                {need === 'COMPLETE' && 'Cuidado total para seu veículo'}
+              </p>
+            </div>
+          </div>
+          
+          {filteredServices.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {filteredServices.map(svc => (
                 <button
                   key={svc.id}
-                  onClick={() => setSelectedServiceId(svc.id)}
+                  onClick={() => toggleService(svc.id)}
                   className={cx(
-                    'rounded-2xl p-5 border text-left transition bg-gray-800/60 border-gray-700 hover:border-blue-500',
-                    selectedServiceId === svc.id && 'border-blue-600 bg-blue-600/10'
+                    'rounded-2xl p-6 border text-left transition-all duration-300 group',
+                    selectedServiceIds.includes(svc.id)
+                      ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/20'
+                      : 'border-gray-700 bg-gradient-to-br from-gray-800/40 to-gray-900/60 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/10'
                   )}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="text-white font-semibold text-lg">{svc.name}</div>
-                    {recommendedServiceId === svc.id && (
-                      <span className="text-xs px-2 py-1 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/30">Mais escolhido para esse objetivo</span>
-                    )}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="text-white font-bold text-lg flex-1">{svc.name}</div>
+                  </div>
+                  <div className="flex items-center gap-2 mb-4">
+                    <Badge variant={getGroupMetaByService(svc).variant} className="text-[11px] uppercase tracking-wide font-bold">
+                      {getGroupMetaByService(svc).label}
+                    </Badge>
                   </div>
                   {svc.description && (
-                    <div className="text-gray-300 text-sm mt-1">{svc.description}</div>
+                    <div className="text-gray-300 text-sm mb-4 line-clamp-2">{svc.description}</div>
                   )}
-                  <div className="text-sm text-gray-400 mt-3 flex gap-4">
-                    <span>⏱ {Math.round((svc.durationMinutes || 0) / 60 * 10) / 10}h</span>
-                    <span>💰 R$ {Number(svc.price || 0).toFixed(2)}</span>
+                  <div className="border-t border-gray-700 pt-4 flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-4 text-gray-400">
+                      <span>⏱️ {svc.durationMinutes} min</span>
+                    </div>
+                    <div className="text-purple-400 font-bold group-hover:text-purple-300">R$ {Number(svc.price).toFixed(2)}</div>
                   </div>
                 </button>
               ))}
             </div>
+          ) : (
+            <div className="text-center py-12 text-gray-400">
+              <p>Desculpe, não encontramos serviços disponíveis para essa seleção.</p>
+              <Button variant="secondary" onClick={() => { setNeed(null) }} className="mt-4">Voltar</Button>
+            </div>
           )}
+          <div className="flex items-center justify-between gap-4 pt-4">
+            <Button variant="secondary" onClick={() => { setNeed(null) }}>Trocar categoria</Button>
+            <Button onClick={goNext} disabled={!canProceed(1)}>Continuar</Button>
+          </div>
         </section>
       )}
 
       {/* STEP 3 - Date & Time */}
-      {selectedServiceId && (
-        <section className="space-y-6">
-          <h3 className="text-2xl font-bold text-white">Quando?</h3>
+      {currentStep === 2 && selectedServiceIds.length > 0 && (
+        <section className="space-y-8">
+          <div>
+            <h3 className="text-2xl font-bold text-white">Quando deseja agendar?</h3>
+            <p className="text-gray-400 text-sm mt-1">Escolha a data e o melhor horário para você</p>
+          </div>
 
           {/* Day selection */}
-          <div className="grid grid-cols-3 gap-3">
-            <button className={cx('p-4 rounded-xl border bg-gray-800/60 border-gray-700 hover:border-blue-500', stepDate==='TODAY' && 'border-blue-600 bg-blue-600/10')} onClick={() => { setStepDate('TODAY'); setSelectedDate(new Date()) }}>Hoje</button>
-            <button className={cx('p-4 rounded-xl border bg-gray-800/60 border-gray-700 hover:border-blue-500', stepDate==='TOMORROW' && 'border-blue-600 bg-blue-600/10')} onClick={() => { setStepDate('TOMORROW'); setSelectedDate(addDays(new Date(),1)) }}>Amanhã</button>
-            <button className={cx('p-4 rounded-xl border bg-gray-800/60 border-gray-700 hover:border-blue-500', stepDate==='OTHER' && 'border-blue-600 bg-blue-600/10')} onClick={() => { setStepDate('OTHER'); const d = new Date(); setSelectedDate(d) }}>Outro dia</button>
+          <div>
+            <div className="text-sm text-gray-400 uppercase tracking-wide mb-3 font-semibold">Data</div>
+            <div className="grid grid-cols-3 gap-3">
+              <button 
+                className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
+                  stepDate==='TODAY' 
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                )} 
+                onClick={() => { setStepDate('TODAY'); setSelectedDate(new Date()) }}
+              >
+                Hoje
+              </button>
+              <button 
+                className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
+                  stepDate==='TOMORROW' 
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                )} 
+                onClick={() => { setStepDate('TOMORROW'); setSelectedDate(addDays(new Date(),1)) }}
+              >
+                Amanhã
+              </button>
+              <button 
+                className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
+                  stepDate==='OTHER' 
+                    ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                )} 
+                onClick={() => { setStepDate('OTHER'); const d = new Date(); setSelectedDate(d) }}
+              >
+                Outro dia
+              </button>
+            </div>
           </div>
+
           {stepDate==='OTHER' && (
-            <div className="flex items-center gap-3 text-white">
-              <input type="date" className="bg-gray-800/60 border border-gray-700 rounded-lg p-2 text-white" value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''} onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : null)} />
-              {selectedDate && <span className="text-gray-300">{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</span>}
+            <div className="flex items-center gap-3">
+              <input 
+                type="date" 
+                className="flex-1 bg-gray-800/60 border border-gray-700 rounded-xl p-3 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-400/30 outline-none transition" 
+                value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''} 
+                onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : null)} 
+              />
+              {selectedDate && <span className="text-gray-300 text-sm whitespace-nowrap">{format(selectedDate, "dd 'de' MMM", { locale: ptBR })}</span>}
             </div>
           )}
 
           {/* Period */}
           {selectedDate && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                <button className={cx('p-4 rounded-xl border bg-gray-800/60 border-gray-700 hover:border-blue-500', period==='MORNING' && 'border-blue-600 bg-blue-600/10')} onClick={() => setPeriod('MORNING')}>Manhã</button>
-                <button className={cx('p-4 rounded-xl border bg-gray-800/60 border-gray-700 hover:border-blue-500', period==='AFTERNOON' && 'border-blue-600 bg-blue-600/10')} onClick={() => setPeriod('AFTERNOON')}>Tarde</button>
-                <button className={cx('p-4 rounded-xl border bg-gray-800/60 border-gray-700 hover:border-blue-500', period==='EVENING' && 'border-blue-600 bg-blue-600/10')} onClick={() => setPeriod('EVENING')}>Noite</button>
+            <div className="space-y-4">
+              <div>
+                <div className="text-sm text-gray-400 uppercase tracking-wide mb-3 font-semibold">Período</div>
+                <div className="grid grid-cols-3 gap-3">
+                  <button 
+                    className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
+                      period==='MORNING' 
+                        ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
+                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                    )} 
+                    onClick={() => setPeriod('MORNING')}
+                  >
+                    Manhã
+                  </button>
+                  <button 
+                    className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
+                      period==='AFTERNOON' 
+                        ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
+                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                    )} 
+                    onClick={() => setPeriod('AFTERNOON')}
+                  >
+                    Tarde
+                  </button>
+                  <button 
+                    className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
+                      period==='EVENING' 
+                        ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
+                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                    )} 
+                    onClick={() => setPeriod('EVENING')}
+                  >
+                    Noite
+                  </button>
+                </div>
               </div>
 
               {/* Times */}
               {period && (
-                <div className="space-y-2">
-                  {loadingTimes && <div className="text-gray-300">Carregando horários...</div>}
+                <div className="space-y-3">
+                  <div className="text-sm text-gray-400 uppercase tracking-wide font-semibold">Horários disponíveis</div>
+                  {loadingTimes && <div className="text-gray-400 py-4 text-center">Carregando horários...</div>}
                   {!loadingTimes && (
-                    <div className="flex flex-wrap gap-2">
-                      {availableTimes.slice(0,3).map(t => (
-                        <button key={t} className={cx('px-4 py-2 rounded-lg border bg-gray-800/60 border-gray-700 hover:border-blue-500', time===t && 'border-blue-600 bg-blue-600/10')} onClick={() => setTime(t)}>{t}</button>
-                      ))}
-                      {availableTimes.length === 0 && (
-                        <div className="text-gray-400">Sem horários nesse período. Tente outro.</div>
+                    <>
+                      {availableTimes.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {(() => {
+                            const base = availableTimes.slice(0, 6)
+                            const list = time && !base.includes(time) ? [time, ...base] : base
+                            const unique = Array.from(new Set(list))
+                            return unique
+                          })().map(t => (
+                            <button 
+                              key={t} 
+                              className={cx(
+                                'px-4 py-2 rounded-lg border font-medium transition-all duration-200',
+                                time===t 
+                                  ? 'border-purple-500 bg-purple-500/20 text-white ring-2 ring-purple-400/50' 
+                                  : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                              )} 
+                              onClick={() => setTime(t)} 
+                              aria-pressed={time===t}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-gray-400 text-center py-4 bg-gray-800/30 rounded-xl">Sem horários disponíveis neste período</div>
                       )}
-                    </div>
+                    </>
                   )}
                 </div>
               )}
             </div>
           )}
+
+          <div className="flex items-center justify-between gap-4 pt-4">
+            <Button variant="secondary" onClick={goBack}>Voltar</Button>
+            <Button onClick={goNext} disabled={!canProceed(2)}>Revisar Agendamento</Button>
+          </div>
+        </section>
+      )}
+
+      {/* STEP 4 - Confirmation */}
+      {currentStep === 3 && (
+        <section className="space-y-8">
+          <div>
+            <h3 className="text-2xl font-bold text-white">Revise seu agendamento</h3>
+            <p className="text-gray-400 text-sm mt-1">Confira todos os detalhes antes de confirmar</p>
+          </div>
+
+          <Card className="bg-gradient-to-br from-purple-900/20 to-gray-900/40 border-purple-500/30 shadow-lg shadow-purple-500/10">
+            <div className="space-y-6">
+              {/* Serviços */}
+              <div>
+                <div className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-3">Serviços Selecionados</div>
+                <div className="space-y-2">
+                  {selectedServices.map(s => (
+                    <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/40 border border-gray-700/50">
+                      <div className="flex items-center gap-3 flex-1">
+                        <Badge variant={getGroupMetaByService(s).variant} className="text-[10px] uppercase tracking-wide font-bold">{getGroupMetaByService(s).label}</Badge>
+                        <span className="text-white font-medium">{s.name}</span>
+                      </div>
+                      <span className="text-purple-400 font-bold ml-2">R$ {Number(s.price).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Data, Hora, Duração, Total */}
+              <div className="border-t border-gray-700/50 pt-6">
+                <div className="text-xs text-gray-400 uppercase tracking-widest font-bold mb-3">Detalhes do Agendamento</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide mb-1">Data</div>
+                    <div className="text-white font-bold">{selectedDate ? format(selectedDate, "dd 'de' MMM", { locale: ptBR }) : '-'}</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide mb-1">Horário</div>
+                    <div className="text-blue-400 font-bold">{time}</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide mb-1">Duração</div>
+                    <div className="text-white font-bold">{Math.round((totalDuration || 0)/60*10)/10}h</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-purple-900/40 to-gray-800/40 border border-purple-500/30">
+                    <div className="text-gray-400 text-xs uppercase tracking-wide mb-1">Total</div>
+                    <div className="text-purple-300 font-bold text-lg">R$ {Number(totalPrice).toFixed(2)}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          <div className="flex items-center justify-between gap-4 pt-4">
+            <Button variant="secondary" onClick={goBack}>Editar</Button>
+            <Button onClick={handleConfirm} className="px-8">
+              ✓ Confirmar Agendamento
+            </Button>
+          </div>
         </section>
       )}
 
       {/* Sticky footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-gray-800 bg-gray-900/95 backdrop-blur px-4 py-3">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 border-t border-gray-800 bg-gray-900/95 backdrop-blur px-4 py-3 z-40">
         <div className="container mx-auto flex items-center justify-between gap-3">
-          <div className="text-white">
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" onClick={() => setShowSelection(v => !v)} size="sm">
+              Serviços ({selectedServices.length})
+            </Button>
+            <div className="text-white">
             <div className="text-sm text-gray-300">Total</div>
             <div className="text-xl font-bold">R$ {Number(totalPrice).toFixed(2)}</div>
+            </div>
           </div>
           <div className="text-gray-300">
             Duração estimada: {Math.round((totalDuration || 0)/60*10)/10}h
           </div>
-          <Button
-            disabled={!selectedService || !selectedDate || !time}
-            onClick={handleContinue}
-          >
-            Continuar
-          </Button>
+          {currentStep < 3 ? (
+            <Button
+              disabled={(currentStep === 1 && !canProceed(1)) || (currentStep === 2 && !canProceed(2))}
+              onClick={goNext}
+            >
+              Continuar
+            </Button>
+          ) : (
+            <Button onClick={handleConfirm} disabled={!selectedServices.length || !selectedDate || !time}>Confirmar</Button>
+          )}
         </div>
       </div>
 
-      {/* Helper modal */}
-      <Modal isOpen={showHelper} onClose={() => setShowHelper(false)} title="Me ajude a escolher">
-        {helperStep === 1 && (
-          <div className="space-y-3">
-            <div className="text-white font-medium">Como está o carro?</div>
-            <div className="grid grid-cols-3 gap-2">
-              {['Limpo','Sujo','Muito sujo'].map(opt => (
-                <button key={opt} className={cx('p-3 rounded-lg border bg-gray-800/60 border-gray-700 hover:border-blue-500', helperAnswers.clean===opt && 'border-blue-600 bg-blue-600/10')} onClick={() => setHelperAnswers(prev => ({...prev, clean: opt}))}>{opt}</button>
-              ))}
-            </div>
-            <div className="flex justify-end"><Button onClick={() => setHelperStep(2)} disabled={!helperAnswers.clean}>Avançar</Button></div>
-          </div>
-        )}
-        {helperStep === 2 && (
-          <div className="space-y-3">
-            <div className="text-white font-medium">O que você procura?</div>
-            <div className="grid grid-cols-3 gap-2">
-              {['Rapidez','Capricho','Proteção'].map(opt => (
-                <button key={opt} className={cx('p-3 rounded-lg border bg-gray-800/60 border-gray-700 hover:border-blue-500', helperAnswers.goal===opt && 'border-blue-600 bg-blue-600/10')} onClick={() => setHelperAnswers(prev => ({...prev, goal: opt}))}>{opt}</button>
-              ))}
-            </div>
-            <div className="flex justify-between">
-              <Button variant="secondary" onClick={() => setHelperStep(1)}>Voltar</Button>
-              <Button onClick={() => setHelperStep(3)} disabled={!helperAnswers.goal}>Avançar</Button>
-            </div>
-          </div>
-        )}
-        {helperStep === 3 && (
-          <div className="space-y-3">
-            <div className="text-white font-medium">Como você usa o carro?</div>
-            <div className="grid grid-cols-3 gap-2">
-              {['Dia a dia','Fim de semana','Trabalho'].map(opt => (
-                <button key={opt} className={cx('p-3 rounded-lg border bg-gray-800/60 border-gray-700 hover:border-blue-500', helperAnswers.use===opt && 'border-blue-600 bg-blue-600/10')} onClick={() => setHelperAnswers(prev => ({...prev, use: opt}))}>{opt}</button>
-              ))}
-            </div>
-            <div className="flex justify-between">
-              <Button variant="secondary" onClick={() => setHelperStep(2)}>Voltar</Button>
-              <Button onClick={finishHelper} disabled={!helperAnswers.use}>Ver recomendação</Button>
+      {/* Selection Drawer */}
+      {showSelection && selectedServices.length > 0 && (
+        <div className="fixed bottom-32 left-0 right-0 px-4 z-40">
+          <div className="container mx-auto">
+            <div className="rounded-2xl bg-gray-900/95 border border-gray-800 backdrop-blur p-4 shadow-xl shadow-black/40">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-white font-semibold">Serviços selecionados</div>
+                <Button variant="secondary" size="sm" onClick={() => setShowSelection(false)}>Fechar</Button>
+              </div>
+              <div className="space-y-2">
+                {selectedServices.map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/60 border border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <Badge variant={getGroupMetaByService(s).variant} className="text-[10px] uppercase tracking-wide">{getGroupMetaByService(s).label}</Badge>
+                      <div className="text-white">{s.name}</div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-gray-300 text-sm">R$ {Number(s.price).toFixed(2)}</div>
+                      <button className="text-gray-400 hover:text-red-400 transition" onClick={() => removeService(s.id)} aria-label="Remover">
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        )}
-      </Modal>
-
-      {/* Quick Car Registration */}
-      {showCarModal && user && (
-        <QuickCarRegistration
-          isOpen={showCarModal}
-          onClose={() => setShowCarModal(false)}
-          onSuccess={() => setShowCarModal(false)}
-          customerId={user.id}
-        />
+        </div>
       )}
+
+      {/* Undo toast */}
+      {lastRemoved && (
+        <div className="fixed bottom-16 right-4">
+          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900/95 border border-gray-800 shadow-lg">
+            <div className="text-white text-sm">Removido: {lastRemoved.name}</div>
+            <Button size="sm" variant="secondary" onClick={undoRemove}>Desfazer</Button>
+          </div>
+        </div>
+      )}
+
+      {/* No car modal here; handled in /agendamentos/novo */
+      }
     </div>
   )
 }

@@ -12,6 +12,8 @@ import { useData } from '@/lib/hooks/useFetch'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
+import { LottieAnimation } from '@/components/ui/LottieAnimation'
+import carGarageAnimation from '@/public/animations/Car Garage animation.json'
 
 interface Appointment {
   id: string
@@ -64,6 +66,7 @@ export default function ClientePage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [reputationSettings, setReputationSettings] = useState({
     enabled: true,
     minForAdvance: 3.0,
@@ -80,6 +83,14 @@ export default function ClientePage() {
   }>(
     user?.id ? `/api/customers/${user.id}` : null
   )
+  
+  console.log('=== DEBUG CLIENTE ===')
+  console.log('User ID:', user?.id)
+  console.log('Customer Data:', customerData)
+  console.log('Appointments:', customerData?.appointments)
+  console.log('Is Loading:', isLoading)
+  console.log('====================')
+  
   const appointments = customerData?.appointments || []
   const customerRating = Number(customerData?.rating) || 5
   const noShowCount = customerData?.noShowCount || 0
@@ -104,6 +115,18 @@ export default function ClientePage() {
   const loadAppointments = useCallback(() => {
     mutate()
   }, [mutate])
+
+  const toggleCard = (appointmentId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(appointmentId)) {
+        newSet.delete(appointmentId)
+      } else {
+        newSet.add(appointmentId)
+      }
+      return newSet
+    })
+  }
 
   // Renderizar estrelas de reputação
   function renderStars(rating: number) {
@@ -167,27 +190,27 @@ export default function ClientePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-white">Meus Agendamentos</h1>
-            <p className="text-gray-400 mt-1">Acompanhe seus agendamentos</p>
+            <p className="text-slate-400 mt-1">Acompanhe seus agendamentos</p>
           </div>
           <Link href="/cliente/novo">
             <Button>+ Novo Agendamento</Button>
           </Link>
         </div>
-        <Card>
-          <div className="space-y-4">
+        <Card className="bg-gradient-to-br from-slate-800/50 to-slate-900/60">
+          <div className="space-y-6">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className="border border-gray-700 rounded-lg p-4">
-                <div className="flex justify-between mb-3">
-                  <div className="space-y-2">
-                    <Skeleton variant="text" width={200} height={24} />
-                    <Skeleton variant="text" width={120} height={16} />
+              <div key={i} className="border border-slate-700/50 rounded-lg p-5 bg-slate-800/30">
+                <div className="flex justify-between mb-4">
+                  <div className="space-y-2 flex-1">
+                    <Skeleton variant="text" width={200} height={28} />
+                    <Skeleton variant="text" width={120} height={20} />
                   </div>
                   <Skeleton variant="rectangular" width={100} height={24} className="rounded-full" />
                 </div>
-                <div className="space-y-2">
-                  <Skeleton variant="text" width="70%" height={16} />
-                  <Skeleton variant="text" width="50%" height={16} />
-                  <Skeleton variant="text" width={100} height={16} />
+                <div className="space-y-3">
+                  <Skeleton variant="rectangular" width="100%" height={80} className="rounded-lg" />
+                  <Skeleton variant="rectangular" width="100%" height={60} className="rounded-lg" />
+                  <Skeleton variant="rectangular" width="100%" height={60} className="rounded-lg" />
                 </div>
               </div>
             ))}
@@ -215,20 +238,52 @@ export default function ClientePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
         <div>
-          <h1 className="text-3xl font-bold text-white">Meus Agendamentos</h1>
-          <p className="text-gray-400 mt-1">Acompanhe seus agendamentos</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-white">Meus Agendamentos</h1>
+          <p className="text-sm md:text-base text-slate-400 mt-1">Acompanhe seus agendamentos e histórico</p>
         </div>
-        <Link href="/cliente/novo">
-          <Button>+ Novo Agendamento</Button>
+        <Link href="/cliente/novo" className="w-full md:w-auto">
+          <Button className="w-full md:w-auto">➕ Novo Agendamento</Button>
         </Link>
       </div>
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
 
-      {/* Lembrete do dia */}
+      {/* Filtros - modernizados */}
+      <div className="flex gap-2 md:gap-3">
+        <button
+          onClick={() => setFilter('upcoming')}
+          className={`py-2 px-4 md:px-6 rounded-lg text-sm font-medium transition-all ${
+            filter === 'upcoming' 
+              ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30' 
+              : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          Próximos
+        </button>
+        <button
+          onClick={() => setFilter('past')}
+          className={`py-2 px-4 md:px-6 rounded-lg text-sm font-medium transition-all ${
+            filter === 'past' 
+              ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30' 
+              : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          Histórico
+        </button>
+        <button
+          onClick={() => setFilter('all')}
+          className={`py-2 px-4 md:px-6 rounded-lg text-sm font-medium transition-all ${
+            filter === 'all' 
+              ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white shadow-lg shadow-blue-500/30' 
+              : 'bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
+        >
+          Todos
+        </button>
+      </div>
       {(() => {
         const today = new Date()
         const todaysAppointment = filteredAppointments
@@ -243,15 +298,15 @@ export default function ClientePage() {
         if (!todaysAppointment) return null
 
         return (
-          <Card>
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">⏰</span>
-              <div>
-                <h3 className="font-medium text-white">Leve seu carro hoje</h3>
-                <p className="text-sm text-gray-300 mt-1">
-                  Você tem um horário às <strong>{format(new Date(todaysAppointment.startDatetime), 'HH:mm')}</strong> para o veículo {todaysAppointment.car.model} ({todaysAppointment.car.plate}).
+          <Card className="bg-gradient-to-br from-blue-900/30 to-blue-800/20 border-blue-500/30">
+            <div className="flex items-start gap-4">
+              <div className="text-4xl">⏰</div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-white text-lg">Agendamento de Hoje</h3>
+                <p className="text-slate-300 mt-2">
+                  Você tem um horário às <strong className="text-blue-400">{format(new Date(todaysAppointment.startDatetime), 'HH:mm')}</strong> para o veículo <strong>{todaysAppointment.car.model}</strong> ({todaysAppointment.car.plate}).
                 </p>
-                <p className="text-xs text-gray-400 mt-1">Caso precise cancelar, a estética registrará o motivo.</p>
+                <p className="text-sm text-slate-400 mt-2">💡 Caso precise cancelar, a estética registrará o motivo.</p>
               </div>
             </div>
           </Card>
@@ -260,15 +315,15 @@ export default function ClientePage() {
 
       {/* Card de Reputação - só mostra se o sistema estiver ativado */}
       {reputationSettings.enabled && (
-        <Card>
-          <div className="flex items-start gap-3">
-            <span className="text-2xl">⭐</span>
+        <Card className="bg-gradient-to-br from-amber-900/20 to-amber-800/10 border-amber-500/20">
+          <div className="flex items-start gap-4">
+            <div className="text-4xl">⭐</div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h3 className="font-medium text-white">Sua Reputação</h3>
+                <h3 className="font-semibold text-white text-lg">Sua Reputação</h3>
                 <div className="flex items-center gap-2">
                   <span className="text-2xl">{renderStars(customerRating)}</span>
-                  <span className={`font-bold ${
+                  <span className={`font-bold text-xl ${
                     customerRating >= 4 ? 'text-green-400' :
                     customerRating >= reputationSettings.minForAdvance ? 'text-yellow-400' :
                     'text-red-400'
@@ -278,26 +333,26 @@ export default function ClientePage() {
                 </div>
               </div>
               
-              <div className="flex gap-6 mt-3 text-sm">
+              <div className="flex gap-6 mt-4 text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-green-400">✓</span>
-                  <span className="text-gray-400">Comparecimentos:</span>
-                  <span className="text-white font-medium">{completedCount}</span>
+                  <span className="text-green-400 text-lg">✓</span>
+                  <span className="text-slate-400">Comparecimentos:</span>
+                  <span className="text-white font-semibold">{completedCount}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-red-400">✗</span>
-                  <span className="text-gray-400">Faltas:</span>
-                  <span className="text-white font-medium">{noShowCount}</span>
+                  <span className="text-red-400 text-lg">✗</span>
+                  <span className="text-slate-400">Faltas:</span>
+                  <span className="text-white font-semibold">{noShowCount}</span>
                 </div>
               </div>
 
               {customerRating < reputationSettings.minForAdvance && (
-                <div className="mt-3 p-3 bg-red-900/30 border border-red-500/30 rounded-lg">
+                <div className="mt-4 p-4 bg-red-900/30 border border-red-500/30 rounded-lg">
                   <p className="text-red-300 text-sm font-medium">
                     ⚠️ Sua reputação está baixa. Novos agendamentos exigirão pagamento antecipado de {reputationSettings.advancePercent}%.
                   </p>
                   {reputationSettings.recoveryOnShow && (
-                    <p className="text-green-400 text-xs mt-1">
+                    <p className="text-green-400 text-xs mt-2">
                       💡 Ao comparecer ao próximo agendamento, sua nota volta para 5.0!
                     </p>
                   )}
@@ -308,108 +363,154 @@ export default function ClientePage() {
         </Card>
       )}
 
-      <Card>
-        <div className="flex gap-2 mb-6">
-          <Button
-            variant={filter === 'upcoming' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilter('upcoming')}
-          >
-            Próximos
-          </Button>
-          <Button
-            variant={filter === 'past' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilter('past')}
-          >
-            Histórico
-          </Button>
-          <Button
-            variant={filter === 'all' ? 'primary' : 'secondary'}
-            size="sm"
-            onClick={() => setFilter('all')}
-          >
-            Todos
-          </Button>
-        </div>
-
+      <Card className="bg-gradient-to-br from-slate-800/50 to-slate-900/60">
         {filteredAppointments.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            <p>Nenhum agendamento encontrado</p>
+          <div className="text-center py-12">
+            <div className="flex justify-center mb-6">
+              <LottieAnimation 
+                animationData={carGarageAnimation} 
+                className="w-48 h-48"
+                loop={true}
+              />
+            </div>
+            <p className="text-slate-400 text-lg mb-2">Nenhum agendamento encontrado</p>
+            <p className="text-slate-500 text-sm mb-6">Faça seu primeiro agendamento e aproveite nossos serviços!</p>
             <Link href="/cliente/novo">
-              <Button className="mt-4">Fazer meu primeiro agendamento</Button>
+              <Button>Fazer meu primeiro agendamento</Button>
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-6">
             {filteredAppointments.map((appointment) => {
+              const startTime = new Date(appointment.startDatetime)
+              const endTime = new Date(appointment.endDatetime)
+              
+              // Verificar se é hoje ou amanhã
+              const now = new Date()
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+              const tomorrow = new Date(today)
+              tomorrow.setDate(tomorrow.getDate() + 1)
+              const appointmentDate = new Date(startTime.getFullYear(), startTime.getMonth(), startTime.getDate())
+              
+              const isToday = appointmentDate.getTime() === today.getTime()
+              const isTomorrow = appointmentDate.getTime() === tomorrow.getTime()
+              
+              const isExpanded = expandedCards.has(appointment.id)
+              
               return (
                 <div 
                   key={appointment.id} 
-                  className={`border rounded-lg p-4 ${
-                    appointment.status === 'CONFIRMED' 
-                      ? 'border-green-500/30 bg-green-900/10'
-                      : appointment.status === 'RESCHEDULED'
-                      ? 'border-orange-500/30 bg-orange-900/10'
-                      : 'border-gray-700 bg-gray-800/50'
-                  }`}
+                  className="bg-gradient-to-br from-slate-800/40 to-slate-900/50 border border-slate-700/50 rounded-xl overflow-hidden hover:border-slate-600/50 transition-all shadow-lg shadow-black/20"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-lg text-white">
-                        {format(new Date(appointment.startDatetime), "EEEE, d 'de' MMMM", { locale: ptBR })}
-                      </p>
-                      <p className="text-gray-400">
-                        {format(new Date(appointment.startDatetime), 'HH:mm')} - {format(new Date(appointment.endDatetime), 'HH:mm')}
-                      </p>
-                    </div>
-                    <Badge variant={statusVariants[appointment.status]}>
-                      {statusLabels[appointment.status]}
-                    </Badge>
-                  </div>
-
-                  <div className="space-y-2 text-sm text-gray-300">
-                    <p>🚗 <strong>Veículo:</strong> {appointment.car.model} - {appointment.car.plate}</p>
-                    <p>🔧 <strong>Serviços:</strong> {appointment.appointmentServices.map(as => as.service.name).join(', ')}</p>
-                    <p className="text-cyan-400">💰 <strong>Valor:</strong> R$ {Number(appointment.totalPrice).toFixed(2)}</p>
-                  </div>
-
-                  {appointment.status === 'CONFIRMED' && (
-                    <div className="mt-3 p-3 bg-green-900/30 border border-green-500/30 rounded-lg">
-                      <p className="text-sm text-green-400">
-                        ✓ <strong>Agendamento confirmado!</strong> Estamos te esperando.
-                      </p>
-                      {appointment.confirmedByBusinessAt && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Estética confirmou em {format(new Date(appointment.confirmedByBusinessAt), "dd/MM 'às' HH:mm")}
+                  {/* Header compacto - sempre visível */}
+                  <div className="p-5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                          <h3 className="text-lg md:text-xl font-bold text-white">
+                            {format(startTime, "EEE, d 'de' MMM", { locale: ptBR })}
+                          </h3>
+                          {isToday && (
+                            <span className="px-3 py-1 bg-gradient-to-r from-orange-600 to-orange-500 text-white text-xs font-bold rounded-full shadow-lg shadow-orange-500/30">
+                              HOJE
+                            </span>
+                          )}
+                          {isTomorrow && (
+                            <span className="px-3 py-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white text-xs font-bold rounded-full shadow-lg shadow-blue-500/30">
+                              AMANHÃ
+                            </span>
+                          )}
+                          <Badge variant={statusVariants[appointment.status]} className="whitespace-nowrap text-xs">
+                            {statusLabels[appointment.status]}
+                          </Badge>
+                        </div>
+                        <p className="text-slate-400 text-base">
+                          {format(startTime, 'HH:mm')} - {format(endTime, 'HH:mm')}
                         </p>
-                      )}
-                    </div>
-                  )}
-
-                  {appointment.status === 'RESCHEDULED' && appointment.suggestedDatetime && (
-                    <div className="mt-3 p-3 bg-orange-900/30 border border-orange-500/30 rounded-lg">
-                      <p className="text-sm text-orange-400 mb-2">
-                        📅 A estética sugeriu um novo horário:
-                      </p>
-                      <p className="text-white font-medium mb-2">
-                        {format(new Date(appointment.suggestedDatetime), "EEEE, d 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                      </p>
-                      {appointment.businessNotes && (
-                        <p className="text-sm text-gray-400 mb-3">
-                          Motivo: {appointment.businessNotes}
-                        </p>
-                      )}
-                      <div className="flex gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="success"
-                          onClick={() => handleAcceptReschedule(appointment.id, appointment.suggestedDatetime!)}
-                          disabled={actionLoading === appointment.id}
-                        >
-                          {actionLoading === appointment.id ? 'Aceitando...' : '✓ Aceitar Novo Horário'}
-                        </Button>
                       </div>
+                      <div className="text-right">
+                        <p className="text-xs text-slate-500">VALOR TOTAL</p>
+                        <p className="text-2xl font-bold text-green-400">
+                          R$ {Number(appointment.totalPrice).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Botão Ver Mais */}
+                    <button
+                      onClick={() => toggleCard(appointment.id)}
+                      className="mt-4 w-full flex items-center justify-center gap-2 text-sm text-slate-400 hover:text-white transition-colors py-2 border-t border-slate-700/30"
+                    >
+                      <span>{isExpanded ? 'Ver menos' : 'Ver mais'}</span>
+                      <svg 
+                        className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Detalhes - expandível */}
+                  {isExpanded && (
+                    <div className="px-5 pb-5 space-y-4 border-t border-slate-700/30 pt-4">
+                      {/* Grid: Veículo e Serviços lado a lado */}
+                      <div className="grid md:grid-cols-2 gap-4">
+                        {/* Seção: Veículo */}
+                        <div className="p-4 bg-slate-800/50 border border-slate-700/30 rounded-lg">
+                          <h4 className="text-xs font-semibold text-slate-400 mb-3">VEÍCULO</h4>
+                          <p className="text-white font-medium text-lg">🚗 {appointment.car.model}</p>
+                          <p className="text-slate-400 mt-1">Placa: <span className="text-white font-mono">{appointment.car.plate}</span></p>
+                        </div>
+
+                        {/* Seção: Serviços */}
+                        <div className="p-4 bg-slate-800/50 border border-slate-700/30 rounded-lg">
+                          <h4 className="text-xs font-semibold text-slate-400 mb-3">SERVIÇOS</h4>
+                          <div className="flex flex-wrap gap-2">
+                            {appointment.appointmentServices.map((as, idx) => (
+                              <Badge key={idx} variant="info" className="text-xs">
+                                {as.service.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Estados - colapsáveis */}
+                      {appointment.status === 'RESCHEDULED' && appointment.suggestedDatetime && (
+                        <div className="p-4 bg-orange-900/30 border border-orange-500/40 rounded-lg">
+                          <p className="text-orange-300 font-semibold mb-2">📅 Novo horário sugerido:</p>
+                          <p className="text-orange-200 text-lg mb-3">
+                            {format(new Date(appointment.suggestedDatetime), "d/MM 'às' HH:mm", { locale: ptBR })}
+                          </p>
+                          <div className="flex gap-3">
+                            <Button
+                              size="sm"
+                              onClick={() => handleAcceptReschedule(appointment.id, appointment.suggestedDatetime!)}
+                              disabled={actionLoading === appointment.id}
+                              className="flex-1"
+                            >
+                              {actionLoading === appointment.id ? '⏳ Processando...' : '✅ Aceitar'}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="flex-1"
+                            >
+                              ❌ Recusar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {appointment.notes && (
+                        <div className="p-4 bg-slate-800/50 border border-slate-700/30 rounded-lg">
+                          <p className="text-xs font-semibold text-slate-400 mb-1">OBSERVAÇÕES</p>
+                          <p className="text-slate-300">{appointment.notes}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

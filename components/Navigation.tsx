@@ -85,6 +85,9 @@ export default function Navigation() {
               <Link href="/servicos" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 🛠️ Serviços
               </Link>
+              <Link href="/categorias" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+                🏷️ Categorias
+              </Link>
               <Link href="/configuracoes" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 ⚙️ Config
               </Link>

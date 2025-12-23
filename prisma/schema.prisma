@@ -17,9 +17,22 @@ model Service {
   createdAt           DateTime             @default(now()) @map("created_at")
   updatedAt           DateTime             @updatedAt @map("updated_at")
   serviceGroup        String?              @map("service_group")
+  categoryId          String?              @map("category_id")
+  category            Category?            @relation(fields: [categoryId], references: [id])
   appointmentServices AppointmentService[]
 
   @@map("services")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  services    Service[]
+
+  @@map("categories")
 }
 
 model Customer {

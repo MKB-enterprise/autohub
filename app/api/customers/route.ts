@@ -24,14 +24,12 @@ export async function GET(request: NextRequest) {
 
     const customers = await prisma.customer.findMany({
       where,
-      include: auth.isAdmin
-        ? {
-            cars: true,
-            _count: {
-              select: { appointments: true }
-            }
-          }
-        : undefined,
+      include: {
+        cars: true,
+        _count: auth.isAdmin ? {
+          select: { appointments: true }
+        } : undefined
+      },
       orderBy: {
         name: 'asc'
       }

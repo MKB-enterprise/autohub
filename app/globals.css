@@ -3,17 +3,23 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-top: env(safe-area-inset-top);
+}
+
+html, body {
+  height: 100%;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  background-color: #0b1020; /* fallback for when Tailwind classes are not yet applied */
+  -webkit-tap-highlight-color: transparent;
+}
+
+.safe-pb {
+  padding-bottom: max(var(--safe-bottom), 0px);
+}
+
+.safe-pt {
+  padding-top: max(var(--safe-top), 0px);
 }

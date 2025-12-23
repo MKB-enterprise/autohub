@@ -23,12 +23,41 @@ async function main() {
 
   // Criar serviços padrão com grupos de exclusividade
   const servicos = [
-    { name: 'Lavagem Simples', description: 'Lavagem externa completa', durationMinutes: 30, price: 50.00, serviceGroup: 'lavagem' },
-    { name: 'Lavagem Completa', description: 'Lavagem interna e externa', durationMinutes: 60, price: 80.00, serviceGroup: 'lavagem' },
-    { name: 'Polimento', description: 'Polimento técnico da pintura', durationMinutes: 180, price: 250.00, serviceGroup: 'polimento' },
-    { name: 'Cristalização', description: 'Cristalização da pintura', durationMinutes: 240, price: 350.00, serviceGroup: 'polimento' },
-    { name: 'Higienização Interna', description: 'Limpeza profunda do interior', durationMinutes: 120, price: 150.00, serviceGroup: 'higienizacao' },
-    { name: 'Vitrificação', description: 'Proteção cerâmica de longa duração', durationMinutes: 480, price: 800.00, serviceGroup: 'protecao' },
+    {
+      name: 'Interior Essencial',
+      description: 'Aspiração completa, limpeza de painel, portas, console, tapetes e acabamento com produtos adequados.',
+      durationMinutes: 25,
+      price: 49.0,
+      serviceGroup: 'interior',
+    },
+    {
+      name: 'Interior Detalhado',
+      description: 'Inclui limpeza detalhada de frestas, trilhos, pedais, bancos e tratamento específico para bancos de couro.',
+      durationMinutes: 45,
+      price: 85.0,
+      serviceGroup: 'interior',
+    },
+    {
+      name: 'Lavagem Técnica Completa',
+      description: 'Pré-lavagem, lavagem manual, limpeza de rodas, caixa de rodas, borrachas e secagem cuidadosa.',
+      durationMinutes: 45,
+      price: 75.0,
+      serviceGroup: 'exterior',
+    },
+    {
+      name: 'Refino Visual da Pintura',
+      description: 'Tratamento manual para realce visual da pintura, melhora do toque e aparência, sem uso de polidora.',
+      durationMinutes: 35,
+      price: 120.0,
+      serviceGroup: 'acabamento',
+    },
+    {
+      name: 'Tratamento Avançado de Pintura',
+      description: 'Tratamento manual avançado que proporciona pintura mais uniforme, lisa e com aparência de cuidado premium.',
+      durationMinutes: 240,
+      price: 399.0,
+      serviceGroup: 'premium',
+    },
   ]
 
   for (const servico of servicos) {

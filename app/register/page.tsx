@@ -44,22 +44,22 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-950">
       <div className="w-full max-w-md">
         <Card>
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 mb-4 rounded-2xl bg-black shadow-lg shadow-black/20">
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="text-center mb-6 md:mb-8">
+            <div className="inline-flex items-center justify-center w-14 h-14 md:w-16 md:h-16 mb-4 rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/20">
+              <svg className="w-7 h-7 md:w-8 md:h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </div>
-            <h1 className="text-4xl font-bold text-white">Criar Conta</h1>
-            <p className="text-gray-400 mt-2">Cadastre-se no sistema</p>
+            <h1 className="text-3xl md:text-4xl font-bold text-white">Criar Conta</h1>
+            <p className="text-gray-400 mt-2 text-sm">Cadastre-se e comece</p>
           </div>
 
           {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
-          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4 mt-4">
             <Input
               label="Nome Completo"
               type="text"
@@ -105,13 +105,13 @@ export default function RegisterPage() {
               placeholder="Digite a senha novamente"
             />
 
-            <Button type="submit" className="w-full mt-2" disabled={loading}>
+            <Button type="submit" className="w-full mt-4 md:mt-6" size="md" disabled={loading}>
               {loading ? '🔄 Criando conta...' : '✨ Criar Conta'}
             </Button>
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-400">
+            <p className="text-xs md:text-sm text-gray-400">
               Já tem uma conta?{' '}
               <Link href="/login" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
                 Fazer login →
