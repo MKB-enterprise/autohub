@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Service {
+  id                  String               @id @default(cuid())
+  name                String
+  description         String?
+  durationMinutes     Int                  @map("duration_minutes")
+  price               Decimal              @db.Decimal(10, 2)
+  isActive            Boolean              @default(true) @map("is_active")
+  createdAt           DateTime             @default(now()) @map("created_at")
+  updatedAt           DateTime             @updatedAt @map("updated_at")
+  serviceGroup        String?              @map("service_group")
+  categoryId          String?              @map("category_id")
+  category            Category?            @relation(fields: [categoryId], references: [id])
+  appointmentServices AppointmentService[]
+
+  @@map("services")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  services    Service[]
+
+  @@map("categories")
+}
+
+model Customer {
+  id                  String        @id @default(cuid())
+  name                String
+  phone               String        @unique
+  email               String?       @unique
+  password            String?
+  notes               String?
+  isAdmin             Boolean       @default(false) @map("is_admin")
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+  completedCount      Int           @default(0) @map("completed_count")
+  noShowCount         Int           @default(0) @map("no_show_count")
+  rating              Decimal       @default(5.0) @db.Decimal(2, 1)
+  googleId            String?       @unique @map("google_id")
+  phoneVerified       Boolean       @default(false) @map("phone_verified")
+  verificationCode    String?       @map("verification_code")
+  verificationExpiry  DateTime?     @map("verification_expiry")
+  appointments        Appointment[]
+  cars                Car[]
+
+  @@map("customers")
+}
+
+model Car {
+  id           String        @id @default(cuid())
+  customerId   String        @map("customer_id")
+  plate        String
+  model        String
+  color        String?
+  year         Int?
+  vehicleType  VehicleType   @default(HATCH) @map("vehicle_type")
+  notes        String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  appointments Appointment[]
+  customer     Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@map("cars")
+}
+
+enum VehicleType {
+  HATCH
+  SEDAN
+  SUV
+  PICKUP
+  MOTO
+  VAN
+
+  @@map("vehicle_type")
+}
+
+model Appointment {
+  id                    String               @id @default(cuid())
+  customerId            String               @map("customer_id")
+  carId                 String               @map("car_id")
+  startDatetime         DateTime             @map("start_datetime")
+  endDatetime           DateTime             @map("end_datetime")
+  status                AppointmentStatus    @default(PENDING)
+  totalPrice            Decimal              @map("total_price") @db.Decimal(10, 2)
+  notes                 String?
+  businessNotes         String?              @map("business_notes")
+  suggestedDatetime     DateTime?            @map("suggested_datetime")
+  confirmedByClientAt   DateTime?            @map("confirmed_by_client_at")
+  confirmedByBusinessAt DateTime?            @map("confirmed_by_business_at")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
+  appointmentServices   AppointmentService[]
+  car                   Car                  @relation(fields: [carId], references: [id])
+  customer              Customer             @relation(fields: [customerId], references: [id])
+
+  @@index([startDatetime, endDatetime])
+  @@index([status])
+  @@map("appointments")
+}
+
+model AppointmentService {
+  id            String      @id @default(cuid())
+  appointmentId String      @map("appointment_id")
+  serviceId     String      @map("service_id")
+  price         Decimal     @db.Decimal(10, 2)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  service       Service     @relation(fields: [serviceId], references: [id])
+
+  @@map("appointment_services")
+}
+
+model Settings {
+  id                       String   @id @default(cuid())
+  openingTimeWeekday       String   @map("opening_time_weekday")
+  closingTimeWeekday       String   @map("closing_time_weekday")
+  slotIntervalMinutes      Int      @map("slot_interval_minutes")
+  maxCarsPerSlot           Int      @map("max_cars_per_slot")
+  timezone                 String   @default("America/Sao_Paulo")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+  reputationAdvancePercent Int      @default(50) @map("reputation_advance_percent")
+  reputationEnabled        Boolean  @default(true) @map("reputation_enabled")
+  reputationMinForAdvance  Decimal  @default(3.0) @map("reputation_min_for_advance") @db.Decimal(2, 1)
+  reputationNoShowPenalty  Decimal  @default(2.5) @map("reputation_no_show_penalty") @db.Decimal(2, 1)
+  reputationRecoveryOnShow Boolean  @default(true) @map("reputation_recovery_on_show")
+
+  @@map("settings")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED_BY_CLIENT
+  CONFIRMED
+  RESCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELED
+  NO_SHOW
+
+  @@map("appointment_status")
+}
