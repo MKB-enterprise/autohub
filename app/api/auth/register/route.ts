@@ -49,10 +49,19 @@ export async function POST(request: NextRequest) {
     console.log('Gerando hash da senha...')
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    const business = await prisma.business.findFirst()
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Nenhuma empresa configurada' },
+        { status: 400 }
+      )
+    }
+
     // Criar cliente
     console.log('Criando cliente no banco...')
     const customer = await prisma.customer.create({
       data: {
+        business: { connect: { id: business.id } },
         name,
         email: email || null,
         phone,
@@ -73,6 +82,7 @@ export async function POST(request: NextRequest) {
     // Gerar token
     const token = generateToken({
       customerId: customer.id,
+      businessId: business.id,
       email: customer.email || '',
       isAdmin: customer.isAdmin
     })

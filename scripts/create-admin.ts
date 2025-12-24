@@ -10,9 +10,21 @@ async function createAdmin() {
     const name = 'Administrador'
     const phone = '(00) 00000-0000'
 
+    // Garantir um business padrão
+    let business = await prisma.business.findFirst()
+    if (!business) {
+      business = await prisma.business.create({
+        data: {
+          name: 'AutoGarage Demo',
+          email: 'demo@autogarage.com',
+          password: 'temp'
+        }
+      })
+    }
+
     // Verificar se já existe
-    const existing = await prisma.customer.findUnique({
-      where: { email }
+    const existing = await prisma.customer.findFirst({
+      where: { businessId: business.id, email }
     })
 
     // Hash da senha
@@ -20,7 +32,7 @@ async function createAdmin() {
 
     if (existing) {
       const admin = await prisma.customer.update({
-        where: { email },
+        where: { businessId_email: { businessId: business.id, email } },
         data: {
           name,
           phone,
@@ -38,6 +50,7 @@ async function createAdmin() {
     // Criar admin
     const admin = await prisma.customer.create({
       data: {
+        business: { connect: { id: business.id } },
         name,
         email,
         phone,

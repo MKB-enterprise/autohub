@@ -16,33 +16,9 @@ import { AppointmentMenu } from '@/components/AppointmentMenu'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/AuthContext'
+import type { Appointment } from '@/lib/types'
 
-interface Appointment {
-  id: string
-  startDatetime: string
-  endDatetime: string
-  status: string
-  totalPrice: number
-  notes: string | null
-  businessNotes: string | null
-  suggestedDatetime: string | null
-  confirmedByClientAt: string | null
-  confirmedByBusinessAt: string | null
-  customer: {
-    name: string
-    phone: string
-  }
-  car: {
-    plate: string
-    model: string
-  }
-  appointmentServices: {
-    service: {
-      name: string
-      durationMinutes: number
-    }
-  }[]
-}
+// Use shared `Appointment` type from lib/types to ensure compatibility across components
 
 interface TimeSlot {
   time: string

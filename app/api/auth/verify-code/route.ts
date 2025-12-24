@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       ? await prisma.customer.findUnique({
           where: { businessId_phone: { businessId: business.id, phone: normalizedPhone } },
         })
-      : await prisma.customer.findUnique({
+      : await prisma.customer.findFirst({
           // fallback only se não houver business (ambiente antigo)
           where: { phone: normalizedPhone as any },
         })

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateToken } from '@/lib/auth'
@@ -14,9 +15,24 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Dados do Google inválidos' }, { status: 400 })
     }
 
-    // Buscar cliente por googleId ou email
-    let customer = await prisma.customer.findFirst({
+    // Garantir um business padrão para atrelar o cliente (mesma lógica do login por código)
+    let business = await prisma.business.findFirst()
+    if (!business) {
+      business = await prisma.business.create({
+        data: {
+          name: 'AutoGarage Demo',
+          email: 'demo@autogarage.com',
+          password: 'temp'
+        }
+      })
+    }
+
+    // Buscar cliente por googleId ou email, sempre limitado ao business atual
+    type CustomerWithCars = Prisma.CustomerGetPayload<{ include: { cars: true } }>
+
+    let customer: CustomerWithCars | null = await prisma.customer.findFirst({
       where: {
+        businessId: business.id,
         OR: [
           { googleId },
           { email }
@@ -34,7 +50,7 @@ export async function POST(request: NextRequest) {
           where: { id: customer.id },
           data: { googleId },
           include: { cars: true }
-        })
+        }) as CustomerWithCars
       }
     } else {
       // Criar novo cliente
@@ -43,6 +59,7 @@ export async function POST(request: NextRequest) {
       
       customer = await prisma.customer.create({
         data: {
+          business: { connect: { id: business.id } },
           googleId,
           email,
           name: name || 'Usuário Google',
@@ -50,12 +67,13 @@ export async function POST(request: NextRequest) {
           phoneVerified: false,
         },
         include: { cars: true }
-      })
+      }) as CustomerWithCars
     }
 
     // Gerar token JWT
     const token = generateToken({
       customerId: customer.id,
+      businessId: customer.businessId,
       email: customer.email || customer.phone,
       isAdmin: customer.isAdmin
     })

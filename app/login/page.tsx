@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 type LoginMethod = 'email' | 'phone' | 'google'
 
 export default function LoginPage() {
-  const { login, loginWithPhone, loginWithGoogle } = useAuth()
+  const { loginCustomer, loginWithPhone, loginWithGoogle } = useAuth()
   const router = useRouter()
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone')
   
@@ -46,7 +46,7 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(email, password)
+      await loginCustomer(email, password)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao fazer login')
     } finally {

@@ -7,6 +7,9 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAdmin()
     const businessId = user.businessId
+    if (!businessId) {
+      return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 400 })
+    }
 
     const packages = await prisma.servicePackage.findMany({
       where: { businessId },
@@ -32,6 +35,9 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAdmin()
     const businessId = user.businessId
+    if (!businessId) {
+      return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 400 })
+    }
     const { name, description, discountPercent, serviceIds } = await request.json()
 
     if (!name || !serviceIds || serviceIds.length === 0) {

@@ -9,7 +9,7 @@ import { Alert } from '@/components/ui/Alert'
 import Link from 'next/link'
 
 export default function RegisterPage() {
-  const { register } = useAuth()
+  const { registerCustomer } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
@@ -35,7 +35,7 @@ export default function RegisterPage() {
     setLoading(true)
 
     try {
-      await register(name, email, phone, password)
+      await registerCustomer(name, email, phone, password)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao criar conta')
     } finally {

@@ -22,7 +22,7 @@ interface AuthContextType {
   business: Business | null
   loading: boolean
   loginCustomer: (email: string, password: string, businessId?: string) => Promise<void>
-  registerCustomer: (name: string, email: string, phone: string, password: string, businessId: string) => Promise<void>
+  registerCustomer: (name: string, email: string, phone: string, password: string, businessId?: string) => Promise<void>
   loginBusiness: (email: string, password: string) => Promise<void>
   registerBusiness: (name: string, email: string, phone: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -102,7 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function registerCustomer(name: string, email: string, phone: string, password: string, businessId: string) {
+  async function registerCustomer(name: string, email: string, phone: string, password: string, businessId?: string) {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

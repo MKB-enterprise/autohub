@@ -16,9 +16,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const business = await prisma.business.findFirst()
+    if (!business) {
+      return NextResponse.json(
+        { error: 'Nenhuma empresa configurada' },
+        { status: 400 }
+      )
+    }
+
     // Buscar cliente
-    const customer = await prisma.customer.findUnique({
-      where: { email },
+    const customer = await prisma.customer.findFirst({
+      where: { businessId: business.id, email },
       select: { id: true, name: true, email: true, phone: true, isAdmin: true, password: true, businessId: true }
     })
 

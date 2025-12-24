@@ -8,6 +8,9 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireAdmin()
     const businessId = user.businessId
+    if (!businessId) {
+      return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 400 })
+    }
 
     const templates = await prisma.notificationTemplate.findMany({
       where: { businessId },
@@ -26,6 +29,9 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await requireAdmin()
     const businessId = user.businessId
+    if (!businessId) {
+      return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 400 })
+    }
     const { type, title, body, isActive } = await request.json()
 
     if (!type || !title || !body) {
