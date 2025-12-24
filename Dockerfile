@@ -3,6 +3,7 @@ RUN apk add --no-cache libc6-compat openssl
 WORKDIR /app
 
 COPY package*.json ./
+COPY prisma ./prisma
 RUN npm ci
 
 FROM node:20-alpine AS builder
