@@ -1,4 +1,4 @@
-# 🚗 Sistema de Agendamento - Estética Automotiva
+# 🏁 Pit Stop - Agendamento Automotivo
 
 Sistema completo de controle de agendamentos para estética automotiva, com área do cliente e área administrativa. Desenvolvido com Next.js 14, TypeScript, Prisma e PostgreSQL.
 
@@ -75,7 +75,7 @@ Sistema completo de controle de agendamentos para estética automotiva, com áre
 
 ```bash
 git clone <repo-url>
-cd agendamento-estetica-automotiva
+cd pit-stop
 npm install
 ```
 
@@ -84,7 +84,7 @@ npm install
 Crie um arquivo `.env`:
 
 ```env
-DATABASE_URL="postgresql://usuario:senha@localhost:5432/mk_estetica_automotiva"
+DATABASE_URL="postgresql://usuario:senha@localhost:5432/pit_stop"
 JWT_SECRET="sua-chave-secreta-super-segura-aqui"
 ```
 
