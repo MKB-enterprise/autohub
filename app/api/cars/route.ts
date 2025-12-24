@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const customerId = searchParams.get('customerId')
 
-    const where: any = {}
+    const where: any = { businessId: auth.businessId }
 
     if (!auth.isAdmin) {
       if (customerId && customerId !== auth.customerId) {
@@ -76,8 +76,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
+    // Garantir que o cliente pertence ao mesmo negócio
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { id: true, businessId: true }
+    })
+
+    if (!customer || customer.businessId !== auth.businessId) {
+      return NextResponse.json({ error: 'Cliente inválido para este negócio' }, { status: 400 })
+    }
+
     const car = await prisma.car.create({
       data: {
+        businessId: auth.businessId as string,
         customerId,
         plate,
         model,

@@ -18,7 +18,7 @@ export async function GET(
     console.log('Is Admin:', isAdmin)
     console.log('Is Self:', isSelf)
 
-    const customer = await prisma.customer.findUnique({
+    const customer = await prisma.customer.findFirst({
       where: { id: params.id },
       include: {
         cars: true,

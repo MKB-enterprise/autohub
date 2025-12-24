@@ -482,6 +482,11 @@ export default function AgendaPage() {
                           📅 Horário sugerido: {format(new Date(slot.appointment.suggestedDatetime), "dd/MM 'às' HH:mm")}
                         </div>
                       )}
+                      {slot.appointment.status === 'CANCELED' && slot.appointment.notes && (
+                        <div className="text-xs text-red-300">
+                          ❌ Motivo do cliente: <span className="text-slate-200">{slot.appointment.notes}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : slot.isBlocked ? (

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import crypto from 'crypto'
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,15 +16,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 })
     }
 
-    // Gerar código de 6 dígitos
-    const verificationCode = crypto.randomInt(100000, 999999).toString()
-    
-    // Código expira em 10 minutos
-    const verificationExpiry = new Date(Date.now() + 10 * 60 * 1000)
+    // Mock fixo para agilizar login
+    const verificationCode = '123456'
+    const verificationExpiry = new Date(Date.now() + 30 * 60 * 1000)
+
+    // Garantir que exista um business para atrelar o cliente
+    let business = await prisma.business.findFirst()
+    if (!business) {
+      business = await prisma.business.create({
+        data: {
+          name: 'AutoGarage Demo',
+          email: 'demo@autogarage.com',
+          password: 'temp',
+        },
+      })
+    }
 
     // Buscar ou criar cliente
     let customer = await prisma.customer.findUnique({
-      where: { phone: normalizedPhone }
+      where: { businessId_phone: { businessId: business.id, phone: normalizedPhone } }
     })
 
     let needsName = false
@@ -34,7 +43,7 @@ export async function POST(request: NextRequest) {
       needsName = !customer.name || customer.name === 'Usuário Temporário' || customer.name.trim() === ''
       // Atualizar código de verificação
       customer = await prisma.customer.update({
-        where: { phone: normalizedPhone },
+        where: { businessId_phone: { businessId: business.id, phone: normalizedPhone } },
         data: {
           verificationCode,
           verificationExpiry,
@@ -44,6 +53,7 @@ export async function POST(request: NextRequest) {
       // Criar novo cliente temporário
       customer = await prisma.customer.create({
         data: {
+          businessId: business.id,
           phone: normalizedPhone,
           name: 'Usuário Temporário', // Será atualizado após verificação
           verificationCode,
@@ -53,8 +63,8 @@ export async function POST(request: NextRequest) {
       needsName = true
     }
 
-    // Em produção, aqui você enviaria o SMS via Twilio, SNS, etc.
-    console.log(`📱 Código de verificação para ${normalizedPhone}: ${verificationCode}`)
+    // Mock explícito para desenvolvimento
+    console.log(`📱 Código (mock) para ${normalizedPhone}: ${verificationCode}`)
 
     return NextResponse.json({
       message: 'Código enviado com sucesso',

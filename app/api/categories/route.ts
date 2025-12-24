@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getCurrentUser, requireAdmin } from '@/lib/auth'
 
 // GET /api/categories - Listar categorias
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const qpBusinessId = searchParams.get('businessId') || undefined
+    const user = await getCurrentUser().catch(() => null)
+    let businessId = qpBusinessId || (user?.businessId as string | undefined)
+    if (!businessId) {
+      const biz = await prisma.business.findFirst({ select: { id: true } })
+      businessId = biz?.id
+    }
+
     const categories = await prisma.category.findMany({
+      where: businessId ? { businessId } : {},
       include: {
         _count: {
           select: { services: true }
@@ -23,6 +34,7 @@ export async function GET() {
 // POST /api/categories - Criar categoria
 export async function POST(request: NextRequest) {
   try {
+    const admin = await requireAdmin()
     const body = await request.json()
     const { name, description } = body
 
@@ -30,13 +42,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 })
     }
 
-    const existing = await prisma.category.findUnique({ where: { name } })
+    const existing = await prisma.category.findFirst({ where: { name, businessId: (admin as any).businessId } })
     if (existing) {
       return NextResponse.json({ error: 'Categoria já existe' }, { status: 409 })
     }
 
     const category = await prisma.category.create({
       data: {
+        businessId: (admin as any).businessId,
         name: name.trim(),
         description: description?.trim() || null
       }

@@ -79,6 +79,9 @@ export default function Navigation() {
               <Link href="/agendamentos/novo" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 ➕ Novo
               </Link>
+              <Link href="/agendamentos" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+                📜 Histórico
+              </Link>
               <Link href="/clientes" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 👥 Clientes
               </Link>

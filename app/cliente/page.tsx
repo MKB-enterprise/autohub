@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton'
 import { Alert } from '@/components/ui/Alert'
+import { Modal } from '@/components/ui/Modal'
+import { Textarea } from '@/components/ui/Textarea'
 import { useData } from '@/lib/hooks/useFetch'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -67,6 +69,9 @@ export default function ClientePage() {
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelReason, setCancelReason] = useState('')
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null)
   const [reputationSettings, setReputationSettings] = useState({
     enabled: true,
     minForAdvance: 3.0,
@@ -167,6 +172,47 @@ export default function ClientePage() {
     } finally {
       setActionLoading(null)
     }
+  }
+
+  async function handleCancelAppointment(appointmentId: string, reason: string) {
+    setActionLoading(appointmentId)
+    try {
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: 'CANCELED',
+          notes: reason.trim()
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao cancelar agendamento')
+      }
+
+      setSuccess('Agendamento cancelado com sucesso.')
+      setShowCancelModal(false)
+      setCancelReason('')
+      setSelectedAppointmentId(null)
+      loadAppointments()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao cancelar')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  function openCancelModal(appointmentId: string) {
+    setSelectedAppointmentId(appointmentId)
+    setCancelReason('')
+    setShowCancelModal(true)
+  }
+
+  function closeCancelModal() {
+    setShowCancelModal(false)
+    setCancelReason('')
+    setSelectedAppointmentId(null)
   }
 
   if (authLoading) {
@@ -511,6 +557,21 @@ export default function ClientePage() {
                           <p className="text-slate-300">{appointment.notes}</p>
                         </div>
                       )}
+
+                      {/* Botão Cancelar - só aparece se não estiver cancelado/concluído */}
+                      {!['CANCELED', 'COMPLETED', 'NO_SHOW'].includes(appointment.status) && (
+                        <div className="flex gap-3 pt-2">
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            onClick={() => openCancelModal(appointment.id)}
+                            disabled={actionLoading === appointment.id}
+                            className="flex-1"
+                          >
+                            {actionLoading === appointment.id ? '⏳ Cancelando...' : '❌ Cancelar Agendamento'}
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -519,6 +580,71 @@ export default function ClientePage() {
           </div>
         )}
       </Card>
+
+      <Modal
+        isOpen={showCancelModal}
+        onClose={closeCancelModal}
+        title="Cancelar agendamento"
+        size="md"
+      >
+        <div className="space-y-4">
+          <p className="text-slate-300 text-sm">Informe o motivo do cancelamento. A estética verá esta mensagem.</p>
+
+          {selectedAppointmentId && (() => {
+            const apt = appointments.find(a => a.id === selectedAppointmentId)
+            if (!apt) return null
+
+            return (
+              <div className="p-3 rounded-lg bg-slate-800/60 border border-slate-700/60 text-sm text-slate-200 space-y-1">
+                <div className="flex items-center justify-between text-slate-300 font-semibold">
+                  <span>{format(new Date(apt.startDatetime), "d 'de' MMM 'às' HH:mm", { locale: ptBR })}</span>
+                  <span className="text-slate-400">{apt.car.model}</span>
+                </div>
+                <div className="text-slate-400">Placa {apt.car.plate}</div>
+                <div className="text-slate-300 text-xs">
+                  Serviços: {apt.appointmentServices.map(s => s.service.name).join(' · ')}
+                </div>
+              </div>
+            )
+          })()}
+
+          <Textarea
+            label="Motivo do cancelamento"
+            placeholder="Ex: Surgiu um imprevisto, preciso reagendar."
+            rows={4}
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            required
+          />
+
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={closeCancelModal}
+              disabled={actionLoading === selectedAppointmentId}
+            >
+              Voltar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              onClick={() => {
+                if (!selectedAppointmentId) return
+                if (!cancelReason.trim()) {
+                  setError('Informe o motivo para cancelar.')
+                  setTimeout(() => setError(null), 3000)
+                  return
+                }
+                handleCancelAppointment(selectedAppointmentId, cancelReason)
+              }}
+              disabled={!cancelReason.trim() || actionLoading === selectedAppointmentId}
+            >
+              {actionLoading === selectedAppointmentId ? 'Cancelando...' : 'Confirmar cancelamento'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

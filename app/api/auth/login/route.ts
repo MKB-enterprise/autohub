@@ -18,7 +18,8 @@ export async function POST(request: NextRequest) {
 
     // Buscar cliente
     const customer = await prisma.customer.findUnique({
-      where: { email }
+      where: { email },
+      select: { id: true, name: true, email: true, phone: true, isAdmin: true, password: true, businessId: true }
     })
 
     if (!customer || !customer.password) {
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     // Gerar token
     const token = generateToken({
       customerId: customer.id,
+      businessId: customer.businessId as any,
       email: customer.email!,
       isAdmin: customer.isAdmin
     })

@@ -164,10 +164,20 @@ export async function calculateTotalPrice(serviceIds: string[]): Promise<number>
  */
 export async function getAvailableSlots(
   date: Date,
-  serviceIds: string[]
+  serviceIds: string[],
+  businessId?: string
 ): Promise<Date[]> {
-  // Buscar configurações
-  const settings = await prisma.settings.findFirst()
+  // Buscar configurações (multi-tenant primeiro; fallback single-tenant)
+  let settings: any = null
+  if (businessId) {
+    settings = await prisma.businessSettings.findUnique({ where: { businessId } })
+  }
+  if (!settings) {
+    settings = await prisma.businessSettings.findFirst()
+  }
+  if (!settings) {
+    settings = await prisma.settings.findFirst()
+  }
   if (!settings) {
     throw new Error('Configurações não encontradas. Execute a seed do banco.')
   }
@@ -205,6 +215,7 @@ export async function getAvailableSlots(
   const dayEnd = endOfDay(zonedDate)
   const existingAppointments = await prisma.appointment.findMany({
     where: {
+      ...(businessId ? { businessId } : {}),
       startDatetime: {
         gte: zonedTimeToUtc(dayStart, timezone),
         lte: zonedTimeToUtc(dayEnd, timezone)
@@ -267,9 +278,13 @@ export async function getAvailableSlots(
  */
 export async function getAvailableSlotsForDuration(
   date: Date,
-  totalDuration: number
+  totalDuration: number,
+  businessId?: string
 ): Promise<Date[]> {
-  const settings = await prisma.settings.findFirst()
+  let settings: any = null
+  if (businessId) settings = await prisma.businessSettings.findUnique({ where: { businessId } })
+  if (!settings) settings = await prisma.businessSettings.findFirst()
+  if (!settings) settings = await prisma.settings.findFirst()
   if (!settings) {
     throw new Error('Configurações não encontradas. Execute a seed do banco.')
   }
@@ -305,6 +320,7 @@ export async function getAvailableSlotsForDuration(
   const dayEnd = endOfDay(zonedDate)
   const existingAppointments = await prisma.appointment.findMany({
     where: {
+      ...(businessId ? { businessId } : {}),
       startDatetime: {
         gte: zonedTimeToUtc(dayStart, timezone),
         lte: zonedTimeToUtc(dayEnd, timezone)
@@ -373,9 +389,13 @@ export async function suggestNextAvailableSlots(
 export async function validateAppointmentSlot(
   startDatetime: Date,
   serviceIds: string[],
-  excludeAppointmentId?: string
+  excludeAppointmentId?: string,
+  businessId?: string
 ): Promise<{ valid: boolean; error?: string }> {
-  const settings = await prisma.settings.findFirst()
+  let settings: any = null
+  if (businessId) settings = await prisma.businessSettings.findUnique({ where: { businessId } })
+  if (!settings) settings = await prisma.businessSettings.findFirst()
+  if (!settings) settings = await prisma.settings.findFirst()
   if (!settings) {
     return { valid: false, error: 'Configurações não encontradas' }
   }
@@ -422,6 +442,7 @@ export async function validateAppointmentSlot(
       notIn: ['CANCELED', 'NO_SHOW']
     }
   }
+  if (businessId) whereClause.businessId = businessId
 
   if (excludeAppointmentId) {
     whereClause.id = { not: excludeAppointmentId }

@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
 
-    const where: any = {}
+    const where: any = { businessId: auth.businessId }
 
     if (!auth.isAdmin) {
       where.id = auth.customerId
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
 
     const customer = await prisma.customer.create({
       data: {
+        businessId: auth.businessId as string,
         name,
         phone,
         notes

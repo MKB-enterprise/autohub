@@ -7,16 +7,19 @@ import { requireAdmin, requireAuth } from '@/lib/auth'
 export async function GET(request: NextRequest) {
   try {
     // Somente administradores podem listar todos os agendamentos
-    await requireAdmin()
+    const auth = await requireAdmin()
 
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')
     const status = searchParams.get('status')
+    const q = searchParams.get('q')?.trim()
+    const from = searchParams.get('from')
+    const to = searchParams.get('to')
     const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : undefined
 
     console.log('GET appointments - Parâmetros:', { date, status, limit })
 
-    const where: any = {}
+    const where: any = { businessId: (auth as any).businessId }
 
     // Filtrar por data (dia completo)
     if (date) {
@@ -41,6 +44,32 @@ export async function GET(request: NextRequest) {
     // Filtrar por status
     if (status) {
       where.status = status
+    }
+
+    // Filtro por intervalo de data (histórico)
+    if (from) {
+      const start = new Date(from)
+      if (!where.startDatetime) where.startDatetime = {}
+      where.startDatetime.gte = start
+    }
+
+    if (to) {
+      const end = new Date(to)
+      end.setHours(23, 59, 59, 999)
+      if (!where.startDatetime) where.startDatetime = {}
+      where.startDatetime.lte = end
+    }
+
+    // Busca textual por cliente, veículo ou serviço
+    if (q) {
+      where.OR = [
+        { customer: { name: { contains: q, mode: 'insensitive' } } },
+        { customer: { phone: { contains: q, mode: 'insensitive' } } },
+        { car: { model: { contains: q, mode: 'insensitive' } } },
+        { car: { plate: { contains: q, mode: 'insensitive' } } },
+        { car: { color: { contains: q, mode: 'insensitive' } } },
+        { appointmentServices: { some: { service: { name: { contains: q, mode: 'insensitive' } } } } }
+      ]
     }
 
     const appointments = await prisma.appointment.findMany({
@@ -107,7 +136,7 @@ export async function POST(request: NextRequest) {
 
     // Validar disponibilidade
     console.log('Validando disponibilidade...')
-    const validation = await validateAppointmentSlot(start, serviceIds)
+    const validation = await validateAppointmentSlot(start, serviceIds, undefined, (user as any).businessId)
     console.log('Resultado validação:', validation)
     
     if (!validation.valid) {
@@ -120,6 +149,7 @@ export async function POST(request: NextRequest) {
     // Buscar serviços e calcular totais
     const services = await prisma.service.findMany({
       where: {
+        businessId: (user as any).businessId,
         id: { in: serviceIds },
         isActive: true
       }
@@ -143,6 +173,7 @@ export async function POST(request: NextRequest) {
 
     const appointment = await prisma.appointment.create({
       data: {
+        businessId: (user as any).businessId,
         customerId,
         carId,
         startDatetime: start,

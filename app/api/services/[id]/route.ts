@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
 
 // GET /api/services/[id]
 export async function GET(
@@ -7,7 +8,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const service = await prisma.service.findUnique({
+    const admin = await requireAdmin()
+    const service = await prisma.service.findFirst({
       where: { id: params.id },
       include: {
         category: true
@@ -37,6 +39,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const admin = await requireAdmin()
     const body = await request.json()
     const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId } = body
 
@@ -93,6 +96,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireAdmin()
     // Verificar se está sendo usado em agendamentos
     const appointmentServices = await prisma.appointmentService.count({
       where: {

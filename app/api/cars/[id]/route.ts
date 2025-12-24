@@ -23,6 +23,10 @@ export async function GET(
       )
     }
 
+    if (car && (car as any).businessId && (car as any).businessId !== (auth as any).businessId) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
+
     if (!auth.isAdmin && car.customerId !== auth.customerId) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
@@ -49,11 +53,15 @@ export async function PATCH(
 
     const existing = await prisma.car.findUnique({
       where: { id: params.id },
-      select: { customerId: true }
+      select: { customerId: true, businessId: true }
     })
 
     if (!existing) {
       return NextResponse.json({ error: 'Carro não encontrado' }, { status: 404 })
+    }
+
+    if ((existing as any).businessId !== (auth as any).businessId) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (!auth.isAdmin && existing.customerId !== auth.customerId) {
@@ -102,11 +110,15 @@ export async function DELETE(
     const auth = await requireAuth()
     const existing = await prisma.car.findUnique({
       where: { id: params.id },
-      select: { customerId: true }
+      select: { customerId: true, businessId: true }
     })
 
     if (!existing) {
       return NextResponse.json({ error: 'Carro não encontrado' }, { status: 404 })
+    }
+
+    if ((existing as any).businessId !== (auth as any).businessId) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (!auth.isAdmin && existing.customerId !== auth.customerId) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAvailableSlots, calculateTotalDuration, calculateTotalPrice, suggestNextAvailableSlots, getAvailableSlotsForDuration } from '@/lib/availability'
 import { format } from 'date-fns'
+import { getCurrentUser } from '@/lib/auth'
 
 // GET /api/availability?date=YYYY-MM-DD&durationMinutes=XX&serviceIds=id1,id2
 export async function GET(request: NextRequest) {
@@ -28,13 +29,16 @@ export async function GET(request: NextRequest) {
     const targetDate = new Date(year, month - 1, day, 12, 0, 0) // Meio-dia para evitar problemas de timezone
     console.log('Data alvo:', targetDate, 'ISO:', targetDate.toISOString())
 
+    const user = await getCurrentUser()
+    const businessId = user?.businessId
+
     let availableSlots: Date[] = []
     if (serviceIds.length > 0) {
-      availableSlots = await getAvailableSlots(targetDate, serviceIds)
+      availableSlots = await getAvailableSlots(targetDate, serviceIds, businessId)
     } else if (durationMinutes) {
       const dur = parseInt(durationMinutes, 10)
       if (!isNaN(dur) && dur > 0) {
-        availableSlots = await getAvailableSlotsForDuration(targetDate, dur)
+        availableSlots = await getAvailableSlotsForDuration(targetDate, dur, businessId)
       }
     }
     console.log('Slots encontrados:', availableSlots.length)
@@ -69,6 +73,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { date, serviceIds, suggestAlternatives } = body
+    const user = await getCurrentUser()
+    const businessId = user?.businessId
 
     console.log('POST /api/availability - Body:', { date, serviceIds })
 
@@ -82,7 +88,7 @@ export async function POST(request: NextRequest) {
     // Criar a data corretamente no timezone local (não UTC)
     const [year, month, day] = date.split('-').map(Number)
     const targetDate = new Date(year, month - 1, day, 12, 0, 0)
-    const availableSlots = await getAvailableSlots(targetDate, serviceIds)
+    const availableSlots = await getAvailableSlots(targetDate, serviceIds, businessId)
 
     // Calcular informações úteis
     const totalDuration = await calculateTotalDuration(serviceIds)

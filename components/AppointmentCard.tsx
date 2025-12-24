@@ -16,6 +16,7 @@ interface Appointment {
   endDatetime: string
   status: string
   totalPrice: number
+  notes?: string | null
 }
 
 interface AppointmentCardProps {
@@ -24,6 +25,8 @@ interface AppointmentCardProps {
   onStartAppointment?: (id: string) => void
   onNoShow?: (id: string) => void
   onReschedule?: (id: string) => void
+  onCancel?: (id: string) => void
+  isCustomer?: boolean
 }
 
 const statusLabels: Record<string, string> = {
@@ -53,7 +56,9 @@ export function AppointmentCard({
   hideValues = false,
   onStartAppointment,
   onNoShow,
-  onReschedule
+  onReschedule,
+  onCancel,
+  isCustomer = false
 }: AppointmentCardProps) {
   const [openMenu, setOpenMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -197,6 +202,16 @@ export function AppointmentCard({
           </div>
         </div>
 
+        {/* Cancellation reason (visible when canceled) */}
+        {appointment.status === 'CANCELED' && appointment.notes && (
+          <div className="p-3 rounded-lg border border-red-500/30 bg-red-900/10 text-sm text-red-100">
+            <div className="flex items-center gap-2 font-semibold text-red-200">
+              <span>❌ Motivo informado pelo cliente</span>
+            </div>
+            <p className="text-red-100/90 mt-1 leading-relaxed">{appointment.notes}</p>
+          </div>
+        )}
+
         {/* Bottom row - Duration, Price, Actions */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-800/40">
           <div className="flex items-center gap-4 text-xs text-slate-400">
@@ -244,7 +259,21 @@ export function AppointmentCard({
                       </button>
                     )}
 
-                    {startTime > now && onStartAppointment && (
+                    {shouldShowActions && onCancel && appointment.status !== 'CANCELED' && appointment.status !== 'COMPLETED' && appointment.status !== 'NO_SHOW' && (
+                      <button
+                        onClick={() => {
+                          if (confirm('Tem certeza que deseja cancelar este agendamento?')) {
+                            onCancel(appointment.id)
+                            setOpenMenu(false)
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 border-b border-slate-800/50 transition"
+                      >
+                        ❌ {isCustomer ? 'Cancelar Agendamento' : 'Cancelar'}
+                      </button>
+                    )}
+
+                    {startTime > now && onStartAppointment && !isCustomer && (
                       <button
                         onClick={() => {
                           onStartAppointment(appointment.id)
@@ -256,7 +285,7 @@ export function AppointmentCard({
                       </button>
                     )}
 
-                    {startTime <= now && (appointment.status === 'PENDING' || appointment.status === 'CONFIRMED' || appointment.status === 'CONFIRMED_BY_CLIENT' || appointment.status === 'NO_SHOW') && onNoShow && (
+                    {startTime <= now && (appointment.status === 'PENDING' || appointment.status === 'CONFIRMED' || appointment.status === 'CONFIRMED_BY_CLIENT' || appointment.status === 'NO_SHOW') && onNoShow && !isCustomer && (
                       <button
                         onClick={() => {
                           onNoShow(appointment.id)

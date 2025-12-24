@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAvailableSlots, suggestNextAvailableSlots, calculateTotalDuration, calculateTotalPrice } from '@/lib/availability'
+import { getCurrentUser } from '@/lib/auth'
 
 // POST /api/appointments/availability - Verificar disponibilidade
 export async function POST(request: NextRequest) {
@@ -22,7 +23,8 @@ export async function POST(request: NextRequest) {
     const targetDate = new Date(year, month - 1, day, 12, 0, 0) // Meio-dia para evitar problemas de timezone
     console.log('Data convertida:', targetDate, 'ISO:', targetDate.toISOString())
 
-    const availableSlots = await getAvailableSlots(targetDate, serviceIds)
+    const user = await getCurrentUser()
+    const availableSlots = await getAvailableSlots(targetDate, serviceIds, user?.businessId)
     console.log('Slots encontrados:', availableSlots.length)
 
     // Calcular informações úteis

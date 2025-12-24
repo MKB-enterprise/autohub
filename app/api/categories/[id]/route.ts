@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAdmin } from '@/lib/auth'
 
 // GET /api/categories/[id]
 export async function GET(
@@ -7,7 +8,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const category = await prisma.category.findUnique({
+    const admin = await requireAdmin()
+    const category = await prisma.category.findFirst({
       where: { id: params.id },
       include: {
         services: {
@@ -33,6 +35,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    const admin = await requireAdmin()
     const body = await request.json()
     const { name, description } = body
 
@@ -70,6 +73,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
+    await requireAdmin()
     const serviceCount = await prisma.service.count({ where: { categoryId: params.id } })
     if (serviceCount > 0) {
       return NextResponse.json(

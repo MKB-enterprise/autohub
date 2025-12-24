@@ -4,14 +4,52 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Iniciando seed...')
+  console.log('🌱 Iniciando seed multi-tenant...')
 
-  // Criar usuário admin (usando modelo Customer com isAdmin=true)
-  const adminPassword = await bcrypt.hash('admin123', 10)
-  const admin = await prisma.customer.upsert({
-    where: { phone: '11999999999' },
+  // 1) Criar/atualizar a empresa principal
+  const businessPassword = await bcrypt.hash('admin123', 10)
+  const business = await prisma.business.upsert({
+    where: { email: 'demo@autogarage.com' },
     update: {},
     create: {
+      name: 'AutoGarage Demo',
+      email: 'demo@autogarage.com',
+      phone: '11999990000',
+      password: businessPassword,
+      subscriptionPlan: 'BASIC',
+      subscriptionStatus: 'ACTIVE',
+      monthlyPrice: 99.99,
+    },
+  })
+  console.log('✅ Empresa criada/atualizada:', business.email, '| Senha: admin123')
+
+  // 2) Configurações da empresa
+  await prisma.businessSettings.upsert({
+    where: { businessId: business.id },
+    update: {},
+    create: {
+      businessId: business.id,
+      openingTimeWeekday: '08:00',
+      closingTimeWeekday: '18:00',
+      slotIntervalMinutes: 30,
+      maxCarsPerSlot: 1,
+      timezone: 'America/Sao_Paulo',
+      notificationsEnabled: true,
+      notificationChannel: 'email',
+      notifyOn24hBefore: true,
+      notifyOn1hBefore: true,
+      packagesEnabled: true,
+    },
+  })
+  console.log('✅ Configurações da empresa prontas')
+
+  // 3) Usuário admin (customer isAdmin=true) vinculado à empresa
+  const adminPassword = await bcrypt.hash('admin123', 10)
+  const admin = await prisma.customer.upsert({
+    where: { businessId_phone: { businessId: business.id, phone: '11999999999' } },
+    update: { businessId: business.id },
+    create: {
+      businessId: business.id,
       name: 'Administrador',
       phone: '11999999999',
       email: 'admin@autogarage.com',
@@ -19,9 +57,9 @@ async function main() {
       isAdmin: true,
     },
   })
-  console.log('✅ Admin criado:', admin.email, '/ Senha: admin123')
+  console.log('✅ Admin criado:', admin.email, '| Senha: admin123')
 
-  // Criar serviços padrão com grupos de exclusividade
+  // 4) Serviços padrão com exclusividade por grupo
   const servicos = [
     {
       name: 'Interior Essencial',
@@ -61,35 +99,12 @@ async function main() {
   ]
 
   for (const servico of servicos) {
-    const existing = await prisma.service.findFirst({ where: { name: servico.name } })
-    if (!existing) {
-      await prisma.service.create({ data: servico })
-      console.log('✅ Serviço criado:', servico.name, '| Grupo:', servico.serviceGroup)
-    } else {
-      // Atualizar o grupo se o serviço já existir
-      await prisma.service.update({
-        where: { id: existing.id },
-        data: { serviceGroup: servico.serviceGroup }
-      })
-      console.log('✅ Serviço atualizado com grupo:', servico.name, '| Grupo:', servico.serviceGroup)
-    }
-  }
-
-  // Criar configurações padrão
-  const existingSettings = await prisma.settings.findFirst()
-  if (!existingSettings) {
-    await prisma.settings.create({
-      data: {
-        openingTimeWeekday: '08:00',
-        closingTimeWeekday: '18:00',
-        slotIntervalMinutes: 30,
-        maxCarsPerSlot: 1,
-        timezone: 'America/Sao_Paulo',
-      },
+    await prisma.service.upsert({
+      where: { businessId_name: { businessId: business.id, name: servico.name } },
+      update: { serviceGroup: servico.serviceGroup },
+      create: { ...servico, businessId: business.id },
     })
-    console.log('✅ Configurações criadas')
-  } else {
-    console.log('⏭️ Configurações já existem')
+    console.log('✅ Serviço disponível para a empresa:', servico.name, '| Grupo:', servico.serviceGroup)
   }
 
   console.log('🎉 Seed concluído!')

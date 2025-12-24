@@ -1,13 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getCurrentUser, requireAdmin } from '@/lib/auth'
 
 // GET /api/services - Listar serviços
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get('activeOnly') === 'true'
+    const qpBusinessId = searchParams.get('businessId') || undefined
+
+    const user = await getCurrentUser().catch(() => null)
+    let businessId = qpBusinessId || (user?.businessId as string | undefined)
+    if (!businessId) {
+      const biz = await prisma.business.findFirst({ select: { id: true } })
+      businessId = biz?.id
+    }
 
     const where: any = {}
+    if (businessId) where.businessId = businessId
 
     if (activeOnly) {
       where.isActive = true
@@ -36,6 +46,7 @@ export async function GET(request: NextRequest) {
 // POST /api/services - Criar serviço
 export async function POST(request: NextRequest) {
   try {
+    const admin = await requireAdmin()
     const body = await request.json()
     const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId } = body
 
@@ -69,6 +80,7 @@ export async function POST(request: NextRequest) {
 
     const service = await prisma.service.create({
       data: {
+        businessId: (admin as any).businessId,
         name,
         description,
         durationMinutes,

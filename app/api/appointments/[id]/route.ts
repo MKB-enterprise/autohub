@@ -48,7 +48,7 @@ export async function PATCH(
     const auth = await requireAuth()
     const existing = await prisma.appointment.findUnique({
       where: { id: params.id },
-      select: { customerId: true }
+      select: { customerId: true, businessId: true }
     })
 
     if (!existing) {
@@ -57,6 +57,9 @@ export async function PATCH(
 
     const isAdmin = auth.isAdmin
     const isOwner = auth.customerId === existing.customerId
+    if ((existing as any).businessId !== (auth as any).businessId) {
+      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+    }
     const body = await request.json()
     const { 
       status, 
@@ -71,15 +74,20 @@ export async function PATCH(
 
     // Se está apenas atualizando status e/ou campos de confirmação
     if (status || confirmedByClientAt || confirmedByBusinessAt || suggestedDatetime || businessNotes !== undefined) {
-      if (status === 'CANCELED' && !isAdmin) {
-        return NextResponse.json({ error: 'Apenas a estética pode cancelar agendamentos' }, { status: 403 })
+      // Cliente pode cancelar seus próprios agendamentos
+      if (status === 'CANCELED' && !isAdmin && !isOwner) {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
       }
 
       const updateData: any = {}
       
       if (status) {
         if (status === 'CANCELED') {
-          if (!businessNotes || String(businessNotes).trim().length === 0) {
+          // Admin precisa de motivo no businessNotes, cliente pode usar notes
+          if (isAdmin && (!businessNotes || String(businessNotes).trim().length === 0)) {
+            return NextResponse.json({ error: 'Informe um motivo para cancelar' }, { status: 400 })
+          }
+          if (!isAdmin && (!notes || String(notes).trim().length === 0)) {
             return NextResponse.json({ error: 'Informe um motivo para cancelar' }, { status: 400 })
           }
         }
@@ -209,7 +217,8 @@ export async function PATCH(
       const validation = await validateAppointmentSlot(
         newStartDatetime,
         newServiceIds,
-        params.id
+        params.id,
+        (auth as any).businessId
       )
 
       if (!validation.valid) {
@@ -222,6 +231,7 @@ export async function PATCH(
       // Buscar serviços e calcular totais
       const services = await prisma.service.findMany({
         where: {
+          businessId: (auth as any).businessId,
           id: { in: newServiceIds },
           isActive: true
         }

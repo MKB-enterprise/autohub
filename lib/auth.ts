@@ -4,7 +4,8 @@ import { cookies } from 'next/headers'
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-this'
 
 export interface TokenPayload {
-  customerId: string
+  customerId?: string
+  businessId?: string
   email: string
   isAdmin: boolean
 }
