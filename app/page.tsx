@@ -14,14 +14,11 @@ export default function Home() {
   const router = useRouter()
 
   return (
-    <section className="px-4 md:px-8 py-5 md:py-12 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-end md:justify-between gap-3">
-        <div className="hidden md:flex items-center gap-2">
-          <Image src="/logo-estetica.png" alt="AutoGarage" width={32} height={32} className="rounded-md" />
-          <div className="leading-tight">
-            <p className="text-sm font-semibold">AutoGarage</p>
-            <p className="text-[11px] text-gray-400">Estética automotiva</p>
-          </div>
+     <section className="px-4 md:px-8 lg:px-12 pt-4 pb-5 md:pt-6 md:pb-12 max-w-7xl mx-auto">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <Image src="/autohub-logo.png" alt="AutoGarage" width={120} height={120} className="rounded-md md:hidden mb-[14px]" />
+          <Image src="/autohub-logo.png" alt="AutoGarage" width={240} height={240} className="rounded-md hidden md:block mb-[14px]" />
         </div>
         <div className="flex items-center gap-2 md:gap-3">
           {user ? (
@@ -53,12 +50,12 @@ export default function Home() {
         </div>
       </div>
 
-      <div className="text-center space-y-2 md:space-y-3">
+      <div className="text-center space-y-2 md:space-y-3 mt-24 md:mt-32">
         <h1 className="text-[22px] md:text-4xl font-bold">Agendamento Simples</h1>
         <p className="text-sm md:text-lg text-gray-400 max-w-2xl mx-auto">Escolha o serviço, o dia e a hora. Pronto! ⚡</p>
       </div>
 
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <GuidedBooking />
       </div>
 

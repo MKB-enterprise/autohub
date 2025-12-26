@@ -343,37 +343,66 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   return (
     <div className="space-y-8 pb-[calc(env(safe-area-inset-bottom)+72px)]">
       {/* Stepper */}
-      <nav className="sticky top-[60px] z-30 bg-gradient-to-r from-gray-950/70 to-gray-900/70 backdrop-blur border border-gray-800/60 rounded-2xl p-4 mb-2 shadow-lg">
-        <ol className="grid grid-cols-3 gap-3 text-xs md:text-sm font-semibold">
+      <nav className="sticky top-[60px] z-30 bg-gray-950/95 backdrop-blur border border-gray-800/60 rounded-2xl p-6 mb-2 shadow-lg">
+        <ol className="flex items-center justify-between relative">
+          {/* Progress line */}
+          <div className="absolute left-0 right-0 top-[18px] h-[2px] bg-gray-800 -z-10" 
+               style={{ marginLeft: '20px', marginRight: '20px' }}>
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500 ease-out"
+              style={{ width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%' }}
+            />
+          </div>
+          
           {[
             { id: 1, label: 'Serviços' },
             { id: 2, label: 'Data & Hora' },
             { id: 3, label: 'Confirmar' }
-          ].map(step => (
-            <li key={step.id}>
-              <button
-                className={cx(
-                  'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200',
-                  currentStep === step.id 
-                    ? 'border-blue-500 bg-blue-500/15 text-white shadow-lg shadow-blue-500/20' 
-                    : step.id < currentStep 
-                    ? 'border-green-500/30 bg-green-500/5 text-green-400'
-                    : 'border-gray-700 bg-gray-800/40 text-gray-400 hover:border-gray-600'
-                )}
-                onClick={() => step.id < currentStep ? setCurrentStep(step.id as 1|2|3) : undefined}
-                aria-current={currentStep === step.id ? 'step' : undefined}
-              >
-                <span className={cx(
-                  'inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-bold transition-all',
-                  currentStep === step.id && 'border-blue-500 bg-blue-500/30 text-blue-400',
-                  step.id < currentStep && 'border-green-500 bg-green-500/20 text-green-400'
-                )}>
-                  {step.id < currentStep ? '✓' : step.id}
-                </span>
-                <span className="hidden sm:inline">{step.label}</span>
-              </button>
-            </li>
-          ))}
+          ].map(step => {
+            const isActive = currentStep === step.id
+            const isCompleted = step.id < currentStep
+            const isClickable = step.id < currentStep
+            
+            return (
+              <li key={step.id} className="flex-1 flex flex-col items-center">
+                <button
+                  className={cx(
+                    'relative group flex flex-col items-center gap-2 transition-all duration-200',
+                    isClickable && 'cursor-pointer hover:scale-105'
+                  )}
+                  onClick={() => isClickable ? setCurrentStep(step.id as 1|2|3) : undefined}
+                  aria-current={isActive ? 'step' : undefined}
+                  disabled={!isClickable && !isActive}
+                >
+                  {/* Circle indicator */}
+                  <div className={cx(
+                    'relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300',
+                    isActive && 'border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-500/50 scale-110',
+                    isCompleted && 'border-green-500 bg-green-500 text-white',
+                    !isActive && !isCompleted && 'border-gray-700 bg-gray-900 text-gray-500'
+                  )}>
+                    {isCompleted ? (
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <span className="text-sm font-bold">{step.id}</span>
+                    )}
+                  </div>
+                  
+                  {/* Label */}
+                  <span className={cx(
+                    'text-xs md:text-sm font-medium transition-colors duration-200 text-center',
+                    isActive && 'text-white',
+                    isCompleted && 'text-green-400',
+                    !isActive && !isCompleted && 'text-gray-500'
+                  )}>
+                    {step.label}
+                  </span>
+                </button>
+              </li>
+            )
+          })}
         </ol>
       </nav>
       {/* STEP 1 - What do you want for your car? */}
@@ -383,7 +412,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
             <h3 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">O que você quer para o seu carro?</h3>
             <p className="text-gray-400 text-base">Escolha uma categoria e vamos encontrar o serviço perfeito</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6 max-w-6xl mx-auto">
             {([
               { key: 'COMPLETE', title: 'Cuidado completo', desc: 'Interna e externa', emoji: '🌟' },
               { key: 'INTERIOR', title: 'Interior', desc: 'Higiene e conforto', emoji: '🪑' },
@@ -394,11 +423,11 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button
                 key={opt.key}
                 onClick={() => setNeed(opt.key as Need)}
-                className="group rounded-2xl text-left p-6 border transition-all duration-300 bg-gradient-to-br from-gray-800/40 to-gray-900/60 border-gray-700 hover:border-purple-500 hover:from-purple-900/20 hover:to-gray-900/40 hover:shadow-xl hover:shadow-purple-500/10 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                className="group rounded-2xl text-left p-5 md:p-7 border transition-all duration-300 bg-gradient-to-br from-gray-800/40 to-gray-900/60 border-gray-700 hover:border-purple-500 hover:from-purple-900/20 hover:to-gray-900/40 hover:shadow-xl hover:shadow-purple-500/10 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
               >
-                <div className="text-4xl mb-3 group-hover:scale-110 transition-transform">{opt.emoji}</div>
-                <div className="text-white font-semibold text-base leading-tight">{opt.title}</div>
-                <div className="text-gray-400 text-sm mt-2">{opt.desc}</div>
+                <div className="text-4xl md:text-5xl mb-3 md:mb-4 group-hover:scale-110 transition-transform">{opt.emoji}</div>
+                <div className="text-white font-semibold text-base md:text-lg leading-tight">{opt.title}</div>
+                <div className="text-gray-400 text-sm md:text-base mt-2">{opt.desc}</div>
               </button>
             ))}
           </div>
@@ -446,7 +475,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
           </div>
           
           {filteredServices.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6">
               {filteredServices.map(svc => (
                 <button
                   key={svc.id}
