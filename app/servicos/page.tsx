@@ -10,6 +10,7 @@ import { Alert } from '@/components/ui/Alert'
 import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { useData } from '@/lib/hooks/useFetch'
+import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
 
 interface Category {
   id: string
@@ -54,19 +55,24 @@ export default function ServicosPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadServices = useCallback(() => {
     mutate()
   }, [mutate])
 
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSaving(true)
-    const formData = new FormData(e.currentTarget)
-
-    try {
+  // Criar serviço - otimistic update
+  const { execute: handleCreate, isLoading: isCreating } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setSuccess('Serviço criado com sucesso!')
+      setShowNewModal(false)
+      loadServices()
+    },
+    onAsync: async () => {
+      const formEl = document.querySelector('form[data-form="create-service"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch('/api/services', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -85,25 +91,27 @@ export default function ServicosPage() {
         const data = await response.json()
         throw new Error(data.error || 'Erro ao criar serviço')
       }
-
-      setSuccess('Serviço criado com sucesso!')
-      setShowNewModal(false)
-      loadServices()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar serviço')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
-  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!selectedService) return
-    setSaving(true)
-
-    const formData = new FormData(e.currentTarget)
-
-    try {
+  // Editar serviço - otimistic update
+  const { execute: handleEdit, isLoading: isEditing } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setSuccess('Serviço atualizado com sucesso!')
+      setShowEditModal(false)
+      setSelectedService(null)
+      loadServices()
+    },
+    onAsync: async () => {
+      if (!selectedService) throw new Error('Serviço não selecionado')
+      
+      const formEl = document.querySelector('form[data-form="edit-service"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch(`/api/services/${selectedService.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -122,23 +130,22 @@ export default function ServicosPage() {
         const data = await response.json()
         throw new Error(data.error || 'Erro ao atualizar serviço')
       }
-
-      setSuccess('Serviço atualizado com sucesso!')
-      setShowEditModal(false)
-      setSelectedService(null)
-      loadServices()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar serviço')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
   async function handleDelete(serviceId: string) {
     if (!confirm('Tem certeza que deseja remover este serviço?')) {
       return
     }
-    setDeletingId(serviceId)
+
+    // Remove otimisticamente
+    const servicesToDelete = services
+    mutate(services.filter(s => s.id !== serviceId), false)
+    setSuccess('Serviço excluído com sucesso!')
+    setError(null)
 
     try {
       const response = await fetch(`/api/services/${serviceId}`, {
@@ -146,22 +153,12 @@ export default function ServicosPage() {
       })
 
       if (!response.ok) {
+        // Restaura se falhar
+        mutate(servicesToDelete, false)
         throw new Error('Erro ao excluir serviço')
       }
-
-      const data = await response.json()
-      
-      if (data.message) {
-        setSuccess(data.message)
-      } else {
-        setSuccess('Serviço excluído com sucesso!')
-      }
-      
-      loadServices()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir serviço')
-    } finally {
-      setDeletingId(null)
     }
   }
 
@@ -272,7 +269,6 @@ export default function ServicosPage() {
                     variant="secondary" 
                     onClick={() => openEditModal(service)}
                     className="flex-1"
-                    disabled={deletingId === service.id}
                   >
                     Editar
                   </Button>
@@ -281,9 +277,8 @@ export default function ServicosPage() {
                     variant="danger" 
                     onClick={() => handleDelete(service.id)}
                     className="flex-1"
-                    disabled={deletingId === service.id}
                   >
-                    {deletingId === service.id ? 'Removendo...' : 'Remover'}
+                    Remover
                   </Button>
                 </div>
               </div>
@@ -298,7 +293,7 @@ export default function ServicosPage() {
         onClose={() => setShowNewModal(false)}
         title="Novo Serviço"
       >
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleCreate() }} data-form="create-service" className="space-y-4">
           <Input label="Nome" name="name" required />
           <Textarea label="Descrição" name="description" rows={3} />
           <Input 
@@ -352,10 +347,10 @@ export default function ServicosPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? 'Salvando...' : 'Salvar'}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={saving}>
+              <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={isCreating}>
               Cancelar
             </Button>
           </div>
@@ -371,7 +366,7 @@ export default function ServicosPage() {
         }}
         title="Editar Serviço"
       >
-        <form onSubmit={handleEdit} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleEdit() }} data-form="edit-service" className="space-y-4">
           <Input label="Nome" name="name" defaultValue={selectedService?.name} required />
           <Textarea label="Descrição" name="description" rows={3} defaultValue={selectedService?.description || ''} />
           <Input 
@@ -440,13 +435,13 @@ export default function ServicosPage() {
             </select>
           </div>
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              <Button type="submit" disabled={isEditing}>
+                {isEditing ? 'Salvando...' : 'Salvar'}
             </Button>
             <Button
               type="button"
               variant="secondary"
-              disabled={saving}
+                disabled={isEditing}
               onClick={() => {
                 setShowEditModal(false)
                 setSelectedService(null)

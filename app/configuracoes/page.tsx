@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
 import { Loading } from '@/components/ui/Loading'
 import { Alert } from '@/components/ui/Alert'
+import { useAsyncForm } from '@/lib/hooks/useAsyncAction'
 
 interface Settings {
   id: string
@@ -24,7 +25,6 @@ interface Settings {
 export default function ConfiguracoesPage() {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [reputationEnabled, setReputationEnabled] = useState(true)
@@ -52,20 +52,15 @@ export default function ConfiguracoesPage() {
     }
   }
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
+  const { onSubmit: handleSubmit, isSubmitting: saving } = useAsyncForm({
+    onSubmit: async (e) => {
     const formData = new FormData(e.currentTarget)
 
-    try {
-      setSaving(true)
-      setError(null)
+    const noShowPenalty = formData.get('reputationNoShowPenalty')
+    const minForAdvance = formData.get('reputationMinForAdvance')
+    const advancePercent = formData.get('reputationAdvancePercent')
 
-      // Campos de reputação - só envia se o sistema estiver ativado e os valores existirem
-      const noShowPenalty = formData.get('reputationNoShowPenalty')
-      const minForAdvance = formData.get('reputationMinForAdvance')
-      const advancePercent = formData.get('reputationAdvancePercent')
-
-      const response = await fetch('/api/settings', {
+    const response = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -88,15 +83,16 @@ export default function ConfiguracoesPage() {
         throw new Error(data.error || 'Erro ao salvar configurações')
       }
 
-      const data = await response.json()
+      return await response.json()
+    },
+    onSuccess: (data) => {
       setSettings(data)
       setSuccess('Configurações salvas com sucesso!')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao salvar configurações')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
   if (loading) {
     return <Loading />

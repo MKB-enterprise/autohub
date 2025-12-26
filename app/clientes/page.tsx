@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
 import { Badge } from '@/components/ui/Badge'
 import { useData } from '@/lib/hooks/useFetch'
+import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
 
 interface Customer {
   id: string
@@ -35,7 +36,6 @@ export default function ClientesPage() {
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   // SWR para cache e revalidação automática
@@ -48,12 +48,18 @@ export default function ClientesPage() {
     mutate()
   }, [mutate])
 
-  async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSaving(true)
-    const formData = new FormData(e.currentTarget)
-
-    try {
+  // Hook para criar cliente - otimistic update
+  const { execute: executeCreate, isLoading: creatingCustomer } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setSuccess('Cliente criado com sucesso!')
+      setShowNewModal(false)
+      loadCustomers()
+    },
+    onAsync: async () => {
+      const formEl = document.querySelector('form[data-form="create-customer"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -67,25 +73,27 @@ export default function ClientesPage() {
       if (!response.ok) {
         throw new Error('Erro ao criar cliente')
       }
-
-      setSuccess('Cliente criado com sucesso!')
-      setShowNewModal(false)
-      loadCustomers()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar cliente')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
-  async function handleEdit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!selectedCustomer) return
-    setSaving(true)
+  // Hook para editar cliente - otimistic update
+  const { execute: executeEdit, isLoading: editingCustomer } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setSuccess('Cliente atualizado com sucesso!')
+      setShowEditModal(false)
+      setSelectedCustomer(null)
+      loadCustomers()
+    },
+    onAsync: async () => {
+      if (!selectedCustomer) throw new Error('Cliente não selecionado')
 
-    const formData = new FormData(e.currentTarget)
-
-    try {
+      const formEl = document.querySelector('form[data-form="edit-customer"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch(`/api/customers/${selectedCustomer.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -99,23 +107,23 @@ export default function ClientesPage() {
       if (!response.ok) {
         throw new Error('Erro ao atualizar cliente')
       }
-
-      setSuccess('Cliente atualizado com sucesso!')
-      setShowEditModal(false)
-      setSelectedCustomer(null)
-      loadCustomers()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar cliente')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
+  // Hook para deletar cliente
   async function handleDelete(customerId: string) {
     if (!confirm('Tem certeza que deseja excluir este cliente?')) {
       return
     }
-    setDeletingId(customerId)
+
+    // Remove otimisticamente
+    const customersBeforeDelete = customers
+    mutate(customers.filter(c => c.id !== customerId), false)
+    setSuccess('Cliente excluído com sucesso!')
+    setError(null)
 
     try {
       const response = await fetch(`/api/customers/${customerId}`, {
@@ -123,16 +131,13 @@ export default function ClientesPage() {
       })
 
       if (!response.ok) {
+        // Restaura se falhar
+        mutate(customersBeforeDelete, false)
         const data = await response.json()
         throw new Error(data.error || 'Erro ao excluir cliente')
       }
-
-      setSuccess('Cliente excluído com sucesso!')
-      loadCustomers()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir cliente')
-    } finally {
-      setDeletingId(null)
     }
   }
 
@@ -273,15 +278,15 @@ export default function ClientesPage() {
         onClose={() => setShowNewModal(false)}
         title="Novo Cliente"
       >
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); executeCreate() }} data-form="create-customer" className="space-y-4">
           <Input label="Nome" name="name" required />
           <Input label="Telefone" name="phone" type="tel" required />
           <Textarea label="Observações" name="notes" rows={3} />
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+            <Button type="submit" disabled={creatingCustomer}>
+              {creatingCustomer ? 'Salvando...' : 'Salvar'}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={saving}>
+            <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={creatingCustomer}>
               Cancelar
             </Button>
           </div>
@@ -297,18 +302,18 @@ export default function ClientesPage() {
         }}
         title="Editar Cliente"
       >
-        <form onSubmit={handleEdit} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); executeEdit() }} data-form="edit-customer" className="space-y-4">
           <Input label="Nome" name="name" defaultValue={selectedCustomer?.name} required />
           <Input label="Telefone" name="phone" type="tel" defaultValue={selectedCustomer?.phone} required />
           <Textarea label="Observações" name="notes" rows={3} defaultValue={selectedCustomer?.notes || ''} />
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+            <Button type="submit" disabled={editingCustomer}>
+              {editingCustomer ? 'Salvando...' : 'Salvar'}
             </Button>
             <Button
               type="button"
               variant="secondary"
-              disabled={saving}
+              disabled={editingCustomer}
               onClick={() => {
                 setShowEditModal(false)
                 setSelectedCustomer(null)

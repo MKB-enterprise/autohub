@@ -341,9 +341,9 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   }
 
   return (
-    <div className="space-y-8 pb-28">
+    <div className="space-y-8 pb-[calc(env(safe-area-inset-bottom)+72px)]">
       {/* Stepper */}
-      <nav className="sticky top-[60px] z-30 bg-gradient-to-r from-gray-950/70 to-gray-900/70 backdrop-blur border border-gray-800/60 rounded-2xl p-4 mb-2 shadow-lg shadow-purple-500/5">
+      <nav className="sticky top-[60px] z-30 bg-gradient-to-r from-gray-950/70 to-gray-900/70 backdrop-blur border border-gray-800/60 rounded-2xl p-4 mb-2 shadow-lg">
         <ol className="grid grid-cols-3 gap-3 text-xs md:text-sm font-semibold">
           {[
             { id: 1, label: 'Serviços' },
@@ -355,7 +355,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                 className={cx(
                   'w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl border transition-all duration-200',
                   currentStep === step.id 
-                    ? 'border-purple-500 bg-purple-500/15 text-white shadow-lg shadow-purple-500/20' 
+                    ? 'border-blue-500 bg-blue-500/15 text-white shadow-lg shadow-blue-500/20' 
                     : step.id < currentStep 
                     ? 'border-green-500/30 bg-green-500/5 text-green-400'
                     : 'border-gray-700 bg-gray-800/40 text-gray-400 hover:border-gray-600'
@@ -365,7 +365,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               >
                 <span className={cx(
                   'inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs font-bold transition-all',
-                  currentStep === step.id && 'border-purple-400 bg-purple-500/30 text-purple-300',
+                  currentStep === step.id && 'border-blue-500 bg-blue-500/30 text-blue-400',
                   step.id < currentStep && 'border-green-500 bg-green-500/20 text-green-400'
                 )}>
                   {step.id < currentStep ? '✓' : step.id}
@@ -379,13 +379,6 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
       {/* STEP 1 - What do you want for your car? */}
       {currentStep === 1 && !need && (
         <section className="space-y-8">
-          <div className="flex justify-center mb-8">
-            <LottieAnimation 
-              animationData={carGarageAnimation} 
-              className="w-64 h-64"
-              loop={true}
-            />
-          </div>
           <div className="text-center space-y-2">
             <h3 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">O que você quer para o seu carro?</h3>
             <p className="text-gray-400 text-base">Escolha uma categoria e vamos encontrar o serviço perfeito</p>
@@ -416,19 +409,30 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
       {currentStep === 1 && need && (
         <section className="space-y-8">
           <div className="flex items-center gap-6 mb-8">
-            <div className="flex-shrink-0">
-              <LottieAnimation 
-                animationData={
-                  need === 'INTERIOR' ? interiorAnimation :
-                  need === 'EXTERIOR' ? exteriorAnimation :
-                  need === 'POLISH' ? nanoAnimation :
-                  need === 'QUICK' ? washerAnimation :
-                  carGarageAnimation
-                } 
-                className="w-32 h-32"
-                loop={true}
-              />
-            </div>
+            {need === 'COMPLETE' && (
+              <div className="flex-shrink-0">
+                <LottieAnimation 
+                  animationData={washerAnimation} 
+                  className="w-32 h-32"
+                  loop={true}
+                />
+              </div>
+            )}
+            {need !== 'COMPLETE' && (
+              <div className="flex-shrink-0">
+                <LottieAnimation 
+                  animationData={
+                    need === 'INTERIOR' ? interiorAnimation :
+                    need === 'EXTERIOR' ? exteriorAnimation :
+                    need === 'POLISH' ? nanoAnimation :
+                    need === 'QUICK' ? washerAnimation :
+                    carGarageAnimation
+                  } 
+                  className="w-32 h-32"
+                  loop={true}
+                />
+              </div>
+            )}
             <div>
               <h3 className="text-2xl font-bold text-white">Escolha o serviço</h3>
               <p className="text-gray-400 mt-1 text-sm">
@@ -450,8 +454,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   className={cx(
                     'rounded-2xl p-6 border text-left transition-all duration-300 group',
                     selectedServiceIds.includes(svc.id)
-                      ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 ring-2 ring-purple-400/50 shadow-lg shadow-purple-500/20'
-                      : 'border-gray-700 bg-gradient-to-br from-gray-800/40 to-gray-900/60 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/10'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 ring-2 ring-blue-400/50 shadow-lg shadow-blue-500/20'
+                      : 'border-gray-700 bg-gradient-to-br from-gray-800/40 to-gray-900/60 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10'
                   )}
                 >
                   <div className="flex items-start justify-between mb-3">
@@ -469,7 +473,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                     <div className="flex items-center gap-4 text-gray-400">
                       <span>⏱️ {svc.durationMinutes} min</span>
                     </div>
-                    <div className="text-purple-400 font-bold group-hover:text-purple-300">R$ {Number(svc.price).toFixed(2)}</div>
+                    <div className="text-blue-400 font-bold group-hover:text-blue-300">R$ {Number(svc.price).toFixed(2)}</div>
                   </div>
                 </button>
               ))}
@@ -480,9 +484,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <Button variant="secondary" onClick={() => { setNeed(null) }} className="mt-4">Voltar</Button>
             </div>
           )}
-          <div className="flex items-center justify-between gap-4 pt-4">
+          <div className="flex items-center justify-start gap-4 pt-4">
             <Button variant="secondary" onClick={() => { setNeed(null) }}>Trocar categoria</Button>
-            <Button onClick={goNext} disabled={!canProceed(1)}>Continuar</Button>
           </div>
         </section>
       )}
@@ -502,8 +505,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button 
                 className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                   stepDate==='TODAY' 
-                    ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
-                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                 )} 
                 onClick={() => { setStepDate('TODAY'); setSelectedDate(new Date()) }}
               >
@@ -512,8 +515,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button 
                 className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                   stepDate==='TOMORROW' 
-                    ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
-                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                 )} 
                 onClick={() => { setStepDate('TOMORROW'); setSelectedDate(addDays(new Date(),1)) }}
               >
@@ -522,8 +525,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button 
                 className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                   stepDate==='OTHER' 
-                    ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
-                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                    ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                 )} 
                 onClick={() => { setStepDate('OTHER'); const d = new Date(); setSelectedDate(d) }}
               >
@@ -536,7 +539,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
             <div className="flex items-center gap-3">
               <input 
                 type="date" 
-                className="flex-1 bg-gray-800/60 border border-gray-700 rounded-xl p-3 text-white focus:border-purple-500 focus:ring-2 focus:ring-purple-400/30 outline-none transition" 
+                className="flex-1 bg-gray-800/60 border border-gray-700 rounded-xl p-3 text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30 outline-none transition" 
                 value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''} 
                 onChange={(e) => setSelectedDate(e.target.value ? new Date(e.target.value) : null)} 
               />
@@ -553,8 +556,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   <button 
                     className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                       period==='MORNING' 
-                        ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
-                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                        ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
+                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                     )} 
                     onClick={() => setPeriod('MORNING')}
                   >
@@ -563,8 +566,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   <button 
                     className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                       period==='AFTERNOON' 
-                        ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
-                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                        ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
+                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                     )} 
                     onClick={() => setPeriod('AFTERNOON')}
                   >
@@ -573,8 +576,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   <button 
                     className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                       period==='EVENING' 
-                        ? 'border-purple-500 bg-gradient-to-br from-purple-900/30 to-gray-900/30 text-white ring-2 ring-purple-400/50' 
-                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                        ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
+                        : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                     )} 
                     onClick={() => setPeriod('EVENING')}
                   >
@@ -603,8 +606,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                               className={cx(
                                 'px-4 py-2 rounded-lg border font-medium transition-all duration-200',
                                 time===t 
-                                  ? 'border-purple-500 bg-purple-500/20 text-white ring-2 ring-purple-400/50' 
-                                  : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-purple-400 hover:bg-gray-800/60'
+                                  ? 'border-blue-500 bg-blue-500/20 text-white ring-2 ring-blue-400/50' 
+                                  : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
                               )} 
                               onClick={() => setTime(t)} 
                               aria-pressed={time===t}
@@ -623,9 +626,8 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
             </div>
           )}
 
-          <div className="flex items-center justify-between gap-4 pt-4">
+          <div className="flex items-center justify-start gap-4 pt-4">
             <Button variant="secondary" onClick={goBack}>Voltar</Button>
-            <Button onClick={goNext} disabled={!canProceed(2)}>Revisar Agendamento</Button>
           </div>
         </section>
       )}
@@ -638,7 +640,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
             <p className="text-gray-400 text-sm mt-1">Confira todos os detalhes antes de confirmar</p>
           </div>
 
-          <Card className="bg-gradient-to-br from-purple-900/20 to-gray-900/40 border-purple-500/30 shadow-lg shadow-purple-500/10">
+          <Card className="bg-gradient-to-br from-blue-900/20 to-gray-900/40 border-blue-500/30 shadow-lg shadow-blue-500/10">
             <div className="space-y-6">
               {/* Serviços */}
               <div>
@@ -670,51 +672,56 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   </div>
                   <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/50">
                     <div className="text-gray-400 text-xs uppercase tracking-wide mb-1">Duração</div>
-                    <div className="text-white font-bold">{Math.round((totalDuration || 0)/60*10)/10}h</div>
+                    <div className="text-white font-bold">{formatHm(totalDuration || 0)}</div>
                   </div>
-                  <div className="p-4 rounded-xl bg-gradient-to-br from-purple-900/40 to-gray-800/40 border border-purple-500/30">
+                  <div className="p-4 rounded-xl bg-gradient-to-br from-blue-900/40 to-gray-800/40 border border-blue-500/30">
                     <div className="text-gray-400 text-xs uppercase tracking-wide mb-1">Total</div>
-                    <div className="text-purple-300 font-bold text-lg">R$ {Number(totalPrice).toFixed(2)}</div>
+                    <div className="text-blue-300 font-bold text-lg">R$ {Number(totalPrice).toFixed(2)}</div>
                   </div>
                 </div>
               </div>
             </div>
           </Card>
 
-          <div className="flex items-center justify-between gap-4 pt-4">
+          <div className="flex items-center justify-start gap-4 pt-4">
             <Button variant="secondary" onClick={goBack}>Editar</Button>
-            <Button onClick={handleConfirm} className="px-8">
-              ✓ Confirmar Agendamento
-            </Button>
           </div>
         </section>
       )}
 
       {/* Sticky footer */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 border-t border-gray-800 bg-gray-900/95 backdrop-blur px-4 py-3 z-40">
-        <div className="container mx-auto flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <Button variant="secondary" onClick={() => setShowSelection(v => !v)} size="sm">
-              Serviços ({selectedServices.length})
-            </Button>
-            <div className="text-white">
-            <div className="text-sm text-gray-300">Total</div>
-            <div className="text-xl font-bold">R$ {Number(totalPrice).toFixed(2)}</div>
+      <div
+        className={`fixed inset-x-0 ${user ? 'bottom-[5.5rem]' : 'bottom-0'} md:bottom-0 border-t border-gray-800 bg-gray-900/95 backdrop-blur px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] z-40`}
+      >
+        <div className="container mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-sm">
+          <div className="flex flex-wrap items-baseline gap-4 md:gap-6 text-white">
+            <div className="flex items-baseline gap-2">
+              <span className="text-gray-300">Total</span>
+              <span className="text-lg font-bold">R$ {Number(totalPrice).toFixed(2)}</span>
             </div>
+            <div className="text-gray-300 whitespace-nowrap">Duração estimada: {formatHm(totalDuration || 0)}</div>
           </div>
-          <div className="text-gray-300">
-            Duração estimada: {Math.round((totalDuration || 0)/60*10)/10}h
+          <div className="w-full md:w-auto md:flex-shrink-0">
+            {currentStep < 3 ? (
+              <Button
+                size="sm"
+                className="w-full md:w-auto"
+                disabled={(currentStep === 1 && !canProceed(1)) || (currentStep === 2 && !canProceed(2))}
+                onClick={goNext}
+              >
+                Continuar
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                className="w-full md:w-auto"
+                onClick={handleConfirm}
+                disabled={!selectedServices.length || !selectedDate || !time}
+              >
+                Confirmar
+              </Button>
+            )}
           </div>
-          {currentStep < 3 ? (
-            <Button
-              disabled={(currentStep === 1 && !canProceed(1)) || (currentStep === 2 && !canProceed(2))}
-              onClick={goNext}
-            >
-              Continuar
-            </Button>
-          ) : (
-            <Button onClick={handleConfirm} disabled={!selectedServices.length || !selectedDate || !time}>Confirmar</Button>
-          )}
         </div>
       </div>
 
@@ -762,4 +769,12 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
       }
     </div>
   )
+}
+
+// Format minutes to "Xh Y min" (always show hours and minutes)
+function formatHm(totalMinutes: number): string {
+  const mins = Math.max(0, Math.round(totalMinutes))
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return `${h}h ${m} min`
 }

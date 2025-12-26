@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { Modal } from '@/components/ui/Modal'
 import { Loading } from '@/components/ui/Loading'
+import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
 
 interface Service {
   id: string
@@ -36,6 +37,7 @@ export default function PacotesPage() {
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingPackage, setEditingPackage] = useState<Package | null>(null)
+    const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -66,8 +68,13 @@ export default function PacotesPage() {
     }
   }
 
-  const handleSave = async () => {
-    try {
+  const { execute: handleSave, isLoading: isSaving } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setShowModal(false)
+      resetForm()
+      loadData()
+    },
+    onAsync: async () => {
       const url = editingPackage ? `/api/packages/${editingPackage.id}` : '/api/packages'
       const method = editingPackage ? 'PATCH' : 'POST'
 
@@ -79,18 +86,13 @@ export default function PacotesPage() {
 
       if (!res.ok) {
         const error = await res.json()
-        alert(error.error || 'Erro ao salvar pacote')
-        return
+        throw new Error(error.error || 'Erro ao salvar pacote')
       }
-
-      await loadData()
-      setShowModal(false)
-      resetForm()
-    } catch (error) {
-      console.error('Erro ao salvar:', error)
-      alert('Erro ao salvar pacote')
+    },
+    onError: (error) => {
+      alert(error.message)
     }
-  }
+  })
 
   const handleEdit = (pkg: Package) => {
     setEditingPackage(pkg)
@@ -107,10 +109,17 @@ export default function PacotesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este pacote?')) return
 
+    // Remove otimisticamente
+    const previousPackages = packages
+    setPackages(packages.filter(p => p.id !== id))
+
     try {
       const res = await fetch(`/api/packages/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Erro ao deletar')
-      await loadData()
+      if (!res.ok) {
+        // Restaura se falhar
+        setPackages(previousPackages)
+        throw new Error('Erro ao deletar')
+      }
     } catch (error) {
       console.error('Erro ao deletar:', error)
       alert('Erro ao deletar pacote')
@@ -209,6 +218,7 @@ export default function PacotesPage() {
                 onClick={() => handleEdit(pkg)}
                 className="flex-1"
                 variant="secondary"
+                disabled={deletingId === pkg.id}
               >
                 Editar
               </Button>
@@ -216,8 +226,9 @@ export default function PacotesPage() {
                 onClick={() => handleDelete(pkg.id)}
                 className="flex-1"
                 variant="danger"
+                disabled={deletingId === pkg.id}
               >
-                Excluir
+                {deletingId === pkg.id ? 'Excluindo...' : 'Excluir'}
               </Button>
             </div>
           </Card>
@@ -312,9 +323,9 @@ export default function PacotesPage() {
             <Button
               onClick={handleSave}
               className="flex-1"
-              disabled={!formData.name || formData.serviceIds.length === 0}
+              disabled={!formData.name || formData.serviceIds.length === 0 || isSaving}
             >
-              {editingPackage ? 'Salvar' : 'Criar Pacote'}
+              {isSaving ? 'Salvando...' : editingPackage ? 'Salvar' : 'Criar Pacote'}
             </Button>
           </div>
         </div>

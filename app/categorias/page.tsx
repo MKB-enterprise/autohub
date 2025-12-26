@@ -9,6 +9,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Alert } from '@/components/ui/Alert'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { useData } from '@/lib/hooks/useFetch'
+import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
 
 interface Category {
   id: string
@@ -26,7 +27,6 @@ export default function CategoriasPage() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -42,15 +42,18 @@ export default function CategoriasPage() {
     mutate()
   }, [mutate])
 
-  async function handleCreate(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
-    const formData = new FormData(e.currentTarget)
-
-    try {
+  // Criar categoria - otimistic update
+  const { execute: handleCreate, isLoading: isCreating } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setShowNewModal(false)
+      setSuccess('Categoria criada com sucesso!')
+      reload()
+    },
+    onAsync: async () => {
+      const formEl = document.querySelector('form[data-form="create-category"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch('/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -64,27 +67,27 @@ export default function CategoriasPage() {
         const data = await response.json()
         throw new Error(data.error || 'Erro ao criar categoria')
       }
-
-      setShowNewModal(false)
-      setSuccess('Categoria criada com sucesso!')
-      reload()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar categoria')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
-  async function handleEdit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    if (!selectedCategory) return
-    setSaving(true)
-    setError(null)
-    setSuccess(null)
-
-    const formData = new FormData(e.currentTarget)
-
-    try {
+  // Editar categoria - otimistic update
+  const { execute: handleEdit, isLoading: isEditing } = useOptimisticUpdate({
+    onOptimistic: () => {
+      setShowEditModal(false)
+      setSelectedCategory(null)
+      setSuccess('Categoria atualizada com sucesso!')
+      reload()
+    },
+    onAsync: async () => {
+      if (!selectedCategory) throw new Error('Categoria não selecionada')
+      
+      const formEl = document.querySelector('form[data-form="edit-category"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch(`/api/categories/${selectedCategory.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -98,38 +101,35 @@ export default function CategoriasPage() {
         const data = await response.json()
         throw new Error(data.error || 'Erro ao atualizar categoria')
       }
-
-      setShowEditModal(false)
-      setSelectedCategory(null)
-      setSuccess('Categoria atualizada com sucesso!')
-      reload()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao atualizar categoria')
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
   async function handleDelete(categoryId: string) {
+    // Remove otimisticamente
+    const categoryToDelete = categories.find(c => c.id === categoryId)
     if (!confirm('Deseja remover esta categoria?')) return
-    setDeletingId(categoryId)
-    setError(null)
-    setSuccess(null)
 
+    // Remove visualmente imediatamente
+    const previousCategories = categories
+    mutate(categories.filter(c => c.id !== categoryId), false)
+    setSuccess('Categoria excluída com sucesso!')
+    setError(null)
+
+    // Faz o delete em background
     try {
       const response = await fetch(`/api/categories/${categoryId}`, { method: 'DELETE' })
 
       if (!response.ok) {
         const data = await response.json()
+        // Se falhar, restaura
+        mutate(previousCategories, false)
         throw new Error(data.error || 'Erro ao excluir categoria')
       }
-
-      setSuccess('Categoria excluída com sucesso!')
-      reload()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir categoria')
-    } finally {
-      setDeletingId(null)
     }
   }
 
@@ -211,10 +211,9 @@ export default function CategoriasPage() {
                     size="sm"
                     variant="danger"
                     className="flex-1"
-                    disabled={deletingId === category.id}
                     onClick={() => handleDelete(category.id)}
                   >
-                    {deletingId === category.id ? 'Removendo...' : 'Remover'}
+                    Remover
                   </Button>
                 </div>
               </div>
@@ -228,14 +227,14 @@ export default function CategoriasPage() {
         onClose={() => setShowNewModal(false)}
         title="Nova Categoria"
       >
-        <form onSubmit={handleCreate} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleCreate() }} data-form="create-category" className="space-y-4">
           <Input label="Nome" name="name" required />
           <Textarea label="Descrição" name="description" rows={3} />
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? 'Salvando...' : 'Salvar'}
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={saving}>
+              <Button type="button" variant="secondary" onClick={() => setShowNewModal(false)} disabled={isCreating}>
               Cancelar
             </Button>
           </div>
@@ -250,17 +249,17 @@ export default function CategoriasPage() {
         }}
         title="Editar Categoria"
       >
-        <form onSubmit={handleEdit} className="space-y-4">
+        <form onSubmit={(e) => { e.preventDefault(); handleEdit() }} data-form="edit-category" className="space-y-4">
           <Input label="Nome" name="name" defaultValue={selectedCategory?.name} required />
           <Textarea label="Descrição" name="description" rows={3} defaultValue={selectedCategory?.description || ''} />
           <div className="flex gap-2">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              <Button type="submit" disabled={isEditing}>
+                {isEditing ? 'Salvando...' : 'Salvar'}
             </Button>
             <Button
               type="button"
               variant="secondary"
-              disabled={saving}
+                disabled={isEditing}
               onClick={() => {
                 setShowEditModal(false)
                 setSelectedCategory(null)

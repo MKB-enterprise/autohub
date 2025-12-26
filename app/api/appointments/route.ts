@@ -116,11 +116,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { customerId, carId, startDatetime, serviceIds, notes } = body
 
-    console.log('Criando agendamento:', { customerId, carId, startDatetime, serviceIds })
+    console.log('Criando agendamento:', { customerId, carId, startDatetime, serviceIds, user })
 
     // Cliente não-admin só pode criar para si mesmo
     if (!user.isAdmin && customerId !== user.customerId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      console.log('Forbidden: customerId mismatch', { 
+        requestCustomerId: customerId, 
+        tokenCustomerId: user.customerId,
+        isAdmin: user.isAdmin
+      })
+      return NextResponse.json({ error: 'Forbidden: Você só pode criar agendamentos para si mesmo' }, { status: 403 })
     }
 
     // Validações básicas

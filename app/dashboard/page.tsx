@@ -9,6 +9,7 @@ import { AppointmentCard } from '@/components/AppointmentCard'
 import { useData } from '@/lib/hooks/useFetch'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 
 interface DashboardStats {
   appointmentsToday: number
@@ -82,53 +83,56 @@ export default function DashboardPage() {
 
 
 
-  async function handleStartAppointment(appointmentId: string) {
-    try {
-      const res = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'IN_PROGRESS' })
-      })
-      if (res.ok) {
-        refreshAppointments()
-      }
-    } catch (err) {
-      console.error('Erro ao iniciar agendamento:', err)
-    }
-  }
+    const [updatingAppointment, setUpdatingAppointment] = useState<string | null>(null)
 
-  async function handleNoShow(appointmentId: string) {
-    try {
-      const res = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'NO_SHOW' })
-      })
-      if (res.ok) {
-        refreshAppointments()
+    const handleStartAppointment = async (appointmentId: string) => {
+      if (updatingAppointment) return
+      setUpdatingAppointment(appointmentId)
+      try {
+        const res = await fetch(`/api/appointments/${appointmentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'IN_PROGRESS' })
+        })
+        if (res.ok) refreshAppointments()
+      } finally {
+        setUpdatingAppointment(null)
       }
-    } catch (err) {
-      console.error('Erro ao marcar como não compareceu:', err)
     }
-  }
 
-  async function handleRequestReschedule(appointmentId: string) {
-    if (!rescheduleReason.trim()) return
-    try {
-      const res = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'RESCHEDULED', rescheduleReason: rescheduleReason.trim() })
-      })
-      if (res.ok) {
-        setRescheduleModal(null)
-        setRescheduleReason('')
-        refreshAppointments()
+    const handleNoShow = async (appointmentId: string) => {
+      if (updatingAppointment) return
+      setUpdatingAppointment(appointmentId)
+      try {
+        const res = await fetch(`/api/appointments/${appointmentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'NO_SHOW' })
+        })
+        if (res.ok) refreshAppointments()
+      } finally {
+        setUpdatingAppointment(null)
       }
-    } catch (err) {
-      console.error('Erro ao solicitar reagendamento:', err)
     }
-  }
+
+    const handleRequestReschedule = async (appointmentId: string) => {
+      if (!rescheduleReason.trim() || updatingAppointment) return
+      setUpdatingAppointment(appointmentId)
+      try {
+        const res = await fetch(`/api/appointments/${appointmentId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'RESCHEDULED', rescheduleReason: rescheduleReason.trim() })
+        })
+        if (res.ok) {
+          setRescheduleModal(null)
+          setRescheduleReason('')
+          refreshAppointments()
+        }
+      } finally {
+        setUpdatingAppointment(null)
+      }
+    }
 
   const sortedAppointments = [...recentAppointments].sort((a, b) =>
     new Date(a.startDatetime).getTime() - new Date(b.startDatetime).getTime()
@@ -334,10 +338,10 @@ export default function DashboardPage() {
                 </button>
                 <button
                   onClick={() => handleRequestReschedule(rescheduleModal)}
-                  disabled={!rescheduleReason.trim()}
+                    disabled={!rescheduleReason.trim() || updatingAppointment === rescheduleModal}
                   className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                  Solicitar
+                    {updatingAppointment === rescheduleModal ? 'Solicitando...' : 'Solicitar'}
                 </button>
               </div>
             </div>

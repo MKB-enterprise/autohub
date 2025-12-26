@@ -8,7 +8,7 @@ import { SWRProvider } from '@/components/providers/SWRProvider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AutoGarage - Sistema de Agendamento',
+  title: 'AutoHub - Sistema de Agendamento',
   description: 'Sistema de controle de agendamento para estética automotiva',
   themeColor: '#0b1020'
 }

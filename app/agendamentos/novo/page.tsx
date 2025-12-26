@@ -17,6 +17,8 @@ import { ServiceSelector } from '@/components/ServiceSelector'
 import Collapsible from '@/components/ui/Collapsible'
 import GuidedBooking from '@/components/GuidedBooking'
 import QuickCarRegistration from '@/components/QuickCarRegistration'
+import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
+import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
 
 interface Customer {
   id: string
@@ -65,11 +67,9 @@ export default function NovoAgendamentoPage() {
   const [totalPrice, setTotalPrice] = useState(0)
   const [loading, setLoading] = useState(true)
   const [checkingAvailability, setCheckingAvailability] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false)
   const [showNewCarModal, setShowNewCarModal] = useState(false)
-  const [savingCustomer, setSavingCustomer] = useState(false)
 
   const selectedCustomerId = watch('customerId')
   const selectedDate = watch('date')
@@ -213,39 +213,41 @@ export default function NovoAgendamentoPage() {
     })
   }
 
-  async function onSubmit(data: AppointmentFormData) {
-    if (selectedServices.length === 0) {
-      setError('Selecione pelo menos um serviço')
-      return
-    }
+  const { execute: onSubmit, isLoading: saving } = useOptimisticUpdate({
+    onOptimistic: () => {
+      // Navega LOGO para /agenda sem esperar o backend
+      router.push('/agenda')
+    },
+    onAsync: async () => {
+      const form = document.querySelector('form') as HTMLFormElement | null
+      if (!form) return
 
-    if (!data.time) {
-      setError('Selecione um horário disponível')
-      return
-    }
+      // Pega os dados do form manualmente
+      const customerId = (form.elements.namedItem('customerId') as HTMLInputElement)?.value
+      const carId = (form.elements.namedItem('carId') as HTMLInputElement)?.value
+      const date = (form.elements.namedItem('date') as HTMLInputElement)?.value
+      const time = (form.elements.namedItem('time') as HTMLInputElement)?.value
+      const notes = (form.elements.namedItem('notes') as HTMLTextAreaElement)?.value
 
-    try {
-      setSaving(true)
-      setError(null)
+      if (selectedServices.length === 0) {
+        throw new Error('Selecione pelo menos um serviço')
+      }
 
-      const startDatetime = `${data.date}T${data.time}:00`
-      
-      console.log('Enviando agendamento:', {
-        customerId: data.customerId,
-        carId: data.carId,
-        startDatetime,
-        serviceIds: selectedServices
-      })
+      if (!time) {
+        throw new Error('Selecione um horário disponível')
+      }
 
+      const startDatetime = `${date}T${time}:00`
+        
       const response = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId: data.customerId,
-          carId: data.carId,
+          customerId,
+          carId,
           startDatetime,
           serviceIds: selectedServices,
-          notes: data.notes || null
+          notes: notes || null
         })
       })
 
@@ -253,22 +255,23 @@ export default function NovoAgendamentoPage() {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Erro ao criar agendamento')
       }
-
-      router.push('/agenda')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar agendamento')
-      console.error('Erro ao criar agendamento:', err)
-    } finally {
-      setSaving(false)
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
-  async function createCustomer(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    setSavingCustomer(true)
-    const formData = new FormData(e.currentTarget)
-    
-    try {
+  const { execute: createCustomerAction, isLoading: savingCustomer } = useOptimisticUpdate({
+    onOptimistic: (newCustomer) => {
+      setCustomers([...customers, newCustomer])
+      setValue('customerId', newCustomer.id)
+      setShowNewCustomerModal(false)
+    },
+    onAsync: async () => {
+      const formEl = document.querySelector('form[data-form="create-customer-appointment"]') as HTMLFormElement
+      if (!formEl) throw new Error('Formulário não encontrado')
+      
+      const formData = new FormData(formEl)
       const response = await fetch('/api/customers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -283,16 +286,12 @@ export default function NovoAgendamentoPage() {
         throw new Error('Erro ao criar cliente')
       }
 
-      const newCustomer = await response.json()
-      setCustomers([...customers, newCustomer])
-      setValue('customerId', newCustomer.id)
-      setShowNewCustomerModal(false)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar cliente')
-    } finally {
-      setSavingCustomer(false)
+      return await response.json()
+    },
+    onError: (err) => {
+      setError(err.message)
     }
-  }
+  })
 
   async function handleCarRegistrationSuccess() {
     setShowNewCarModal(false)
@@ -350,10 +349,16 @@ export default function NovoAgendamentoPage() {
         />
       </Card>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={(e) => { e.preventDefault(); handleSubmit((data) => onSubmit(data))() }} className="space-y-6">
         {/* Hidden fields to keep date/time in form state */}
         <input type="hidden" {...register('date', { required: 'Data é obrigatória' })} />
         <input type="hidden" {...register('time', { required: 'Horário é obrigatório' })} />
+        
+        {/* Se não é admin, registrar customerId como hidden */}
+        {!user?.isAdmin && user?.id && (
+          <input type="hidden" {...register('customerId', { value: user.id })} />
+        )}
+        
         <Card title="Dados do Cliente">
           <div className="space-y-4">
             {user?.isAdmin ? (
@@ -441,7 +446,7 @@ export default function NovoAgendamentoPage() {
           onClose={() => setShowNewCustomerModal(false)}
           title="Novo Cliente"
         >
-          <form onSubmit={createCustomer} className="space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); createCustomerAction() }} data-form="create-customer-appointment" className="space-y-4">
             <Input label="Nome" name="name" required />
             <Input label="Telefone" name="phone" type="tel" required />
             <Textarea label="Observações" name="notes" rows={3} />
