@@ -116,11 +116,13 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { customerId, carId, startDatetime, serviceIds, notes } = body
 
-    console.log('Criando agendamento:', { customerId, carId, startDatetime, serviceIds, user })
+    console.log('=== CRIAR AGENDAMENTO ===')
+    console.log('Body recebido:', JSON.stringify(body, null, 2))
+    console.log('User autenticado:', { id: user.id, isAdmin: user.isAdmin, businessId: (user as any).businessId, customerId: (user as any).customerId })
 
     // Cliente não-admin só pode criar para si mesmo
     if (!user.isAdmin && customerId !== user.customerId) {
-      console.log('Forbidden: customerId mismatch', { 
+      console.log('❌ Forbidden: customerId mismatch', { 
         requestCustomerId: customerId, 
         tokenCustomerId: user.customerId,
         isAdmin: user.isAdmin
@@ -130,6 +132,13 @@ export async function POST(request: NextRequest) {
 
     // Validações básicas
     if (!customerId || !carId || !startDatetime || !serviceIds || serviceIds.length === 0) {
+      console.log('❌ Validação básica falhou:', {
+        hasCustomerId: !!customerId,
+        hasCarId: !!carId,
+        hasStartDatetime: !!startDatetime,
+        hasServiceIds: !!serviceIds,
+        serviceIdsLength: serviceIds?.length
+      })
       return NextResponse.json(
         { error: 'Campos obrigatórios faltando' },
         { status: 400 }
@@ -137,14 +146,15 @@ export async function POST(request: NextRequest) {
     }
 
     const start = new Date(startDatetime)
-    console.log('Data de início:', start)
+    console.log('📅 Data de início parseada:', start)
 
     // Validar disponibilidade
-    console.log('Validando disponibilidade...')
+    console.log('🔍 Validando disponibilidade do slot...')
     const validation = await validateAppointmentSlot(start, serviceIds, undefined, (user as any).businessId)
-    console.log('Resultado validação:', validation)
+    console.log('✅ Resultado validação:', validation)
     
     if (!validation.valid) {
+      console.log(`❌ Slot indisponível: ${validation.error}`)
       return NextResponse.json(
         { error: validation.error },
         { status: 400 }
@@ -152,6 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar serviços e calcular totais
+    console.log('🔍 Buscando serviços:', serviceIds)
     const services = await prisma.service.findMany({
       where: {
         businessId: (user as any).businessId,
@@ -160,7 +171,9 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log(`✅ Serviços encontrados: ${services.length}/${serviceIds.length}`)
     if (services.length !== serviceIds.length) {
+      console.log('❌ Alguns serviços não foram encontrados ou estão inativos')
       return NextResponse.json(
         { error: 'Um ou mais serviços não encontrados ou inativos' },
         { status: 400 }
