@@ -29,7 +29,7 @@ export default function Sidebar() {
   const menuItems = user.isAdmin ? adminMenuItems : clientMenuItems
 
   return (
-    <aside className="w-56 bg-gray-950 border-r border-gray-800 min-h-screen flex flex-col">
+    <aside className="w-56 bg-gray-950 border-r border-gray-800 h-screen sticky top-0 flex flex-col">
       {/* Logo */}
       <div className="p-6 border-b border-gray-800">
         <Link href={user.isAdmin ? '/dashboard' : '/cliente'} className="text-xl font-bold text-white">
@@ -38,7 +38,7 @@ export default function Sidebar() {
       </div>
 
       {/* Menu */}
-      <nav className="flex-1 p-4">
+      <nav className="flex-1 p-4 overflow-y-auto">
         <ul className="space-y-1">
           {menuItems.map((item) => {
             // Verificação mais precisa para evitar que /cliente fique ativo em /cliente/novo
@@ -64,7 +64,7 @@ export default function Sidebar() {
       </nav>
 
       {/* User Info */}
-      <div className="p-4 border-t border-gray-800">
+      <div className="p-4 border-t border-gray-800 mt-auto">
         <div className="flex items-center gap-3 mb-3 px-2">
           <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm">
             {user.name.charAt(0).toUpperCase()}

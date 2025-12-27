@@ -13,7 +13,6 @@ import { Card } from '@/components/ui/Card'
 import { Alert } from '@/components/ui/Alert'
 import { Loading } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
-import { ServiceSelector } from '@/components/ServiceSelector'
 import Collapsible from '@/components/ui/Collapsible'
 import GuidedBooking from '@/components/GuidedBooking'
 import QuickCarRegistration from '@/components/QuickCarRegistration'
@@ -73,6 +72,7 @@ export default function NovoAgendamentoPage() {
 
   const selectedCustomerId = watch('customerId')
   const selectedDate = watch('date')
+  const selectedCarId = watch('carId')
 
   useEffect(() => {
     loadInitialData()
@@ -333,21 +333,29 @@ export default function NovoAgendamentoPage() {
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
       {/* Guided flow for logged users: objective → service → date/period/time */}
-      <Card title="Seleção guiada">
-        <GuidedBooking
-          onContinue={({ services: guidedServices, date, time }) => {
-            const ids = guidedServices.map(s => s.id)
-            setSelectedServices(ids)
-            setValue('date', date)
-            setValue('time', time)
-            const duration = guidedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
-            const price = guidedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
-            setTotalDuration(duration)
-            setTotalPrice(price)
-            setError(null)
-          }}
-        />
-      </Card>
+      <GuidedBooking
+        onContinue={({ services: guidedServices, date, time }) => {
+          const ids = guidedServices.map(s => s.id)
+          setSelectedServices(ids)
+          setValue('date', date)
+          setValue('time', time)
+          const duration = guidedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
+          const price = guidedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
+          setTotalDuration(duration)
+          setTotalPrice(price)
+          setError(null)
+
+          // Auto-submete quando já há cliente e veículo selecionados
+          const hasCustomer = (user?.isAdmin ? !!selectedCustomerId : !!user?.id)
+          const hasCar = !!selectedCarId
+          if (hasCustomer && hasCar && ids.length && time) {
+            // Aguarda o estado sincronizar no form e dispara criação
+            setTimeout(() => {
+              onSubmit()
+            }, 0)
+          }
+        }}
+      />
 
       <form onSubmit={(e) => { e.preventDefault(); handleSubmit((data) => onSubmit(data))() }} className="space-y-6">
         {/* Hidden fields to keep date/time in form state */}
@@ -406,20 +414,6 @@ export default function NovoAgendamentoPage() {
           </div>
         </Card>
 
-        {/* Advanced selection (optional): keep available for admins who want overrides */}
-        {user?.isAdmin && (
-          <Card title="Serviços (opcional)">
-            <ServiceSelector
-              services={services}
-              selected={selectedServices}
-              onChange={setSelectedServices}
-              totalDuration={totalDuration}
-              totalPrice={totalPrice}
-              showHint={false}
-            />
-          </Card>
-        )}
-
         <Card title="Observações">
           <Textarea
             label="Observações"
@@ -429,14 +423,7 @@ export default function NovoAgendamentoPage() {
           />
         </Card>
 
-        <div className="flex gap-4">
-          <Button type="submit" disabled={saving || checkingAvailability}>
-            {saving ? 'Salvando...' : 'Criar Agendamento'}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => router.push('/agenda')}>
-            Cancelar
-          </Button>
-        </div>
+        {/* Removido: botões do formulário para evitar duplicidade com o CTA fixo do GuidedBooking */}
       </form>
 
       {/* Modal Novo Cliente */}

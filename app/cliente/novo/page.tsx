@@ -6,12 +6,10 @@ import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
-import { Textarea } from '@/components/ui/Textarea'
 import { Loading } from '@/components/ui/Loading'
 import { Alert } from '@/components/ui/Alert'
-import { ServiceSelector } from '@/components/ServiceSelector'
+import GuidedBooking from '@/components/GuidedBooking'
+import QuickCarRegistration from '@/components/QuickCarRegistration'
 import { format, parseISO, addMinutes } from 'date-fns'
 
 interface Service {
@@ -55,7 +53,6 @@ interface ReputationSettings {
 export default function NovoAgendamentoPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
-  const [services, setServices] = useState<Service[]>([])
   const [cars, setCars] = useState<Car[]>([])
   const [customerRating, setCustomerRating] = useState<number>(5)
   const [noShowCount, setNoShowCount] = useState<number>(0)
@@ -67,15 +64,9 @@ export default function NovoAgendamentoPage() {
     advancePercent: 50,
     recoveryOnShow: true
   })
-  const [selectedServices, setSelectedServices] = useState<string[]>([])
-  const [availableTimes, setAvailableTimes] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>()
-  const watchDate = watch('date')
+  const [showNewCarModal, setShowNewCarModal] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -87,29 +78,18 @@ export default function NovoAgendamentoPage() {
     }
   }, [user, authLoading, router])
 
-  useEffect(() => {
-    console.log('useEffect triggered - watchDate:', watchDate, 'selectedServices:', selectedServices.length)
-    if (watchDate && selectedServices.length > 0) {
-      loadAvailableTimes(watchDate)
-    } else {
-      setAvailableTimes([])
-    }
-  }, [watchDate, selectedServices])
-
   async function loadData() {
     try {
       setLoading(true)
-      const [servicesRes, customerRes, reputationRes] = await Promise.all([
-        fetch('/api/services'),
+      const [customerRes, reputationRes] = await Promise.all([
         fetch(`/api/customers/${user?.id}`),
         fetch('/api/settings/reputation')
       ])
 
-      if (!servicesRes.ok || !customerRes.ok) {
+      if (!customerRes.ok) {
         throw new Error('Erro ao carregar dados')
       }
 
-      const servicesData = await servicesRes.json()
       const customerData = await customerRes.json()
       
       if (reputationRes.ok) {
@@ -117,7 +97,6 @@ export default function NovoAgendamentoPage() {
         setReputationSettings(reputationData)
       }
 
-      setServices(servicesData)
       setCars(customerData.cars || [])
       setCustomerRating(Number(customerData.rating) || 5)
       setNoShowCount(customerData.noShowCount || 0)
@@ -129,50 +108,31 @@ export default function NovoAgendamentoPage() {
     }
   }
 
-  async function loadAvailableTimes(date: string) {
+  async function handleCarRegistrationSuccess() {
+    setShowNewCarModal(false)
     try {
-      // Passar os IDs dos serviços selecionados
-      const serviceIdsParam = selectedServices.join(',')
-      
-      console.log('=== BUSCANDO HORÁRIOS ===')
-      console.log('Data:', date)
-      console.log('Serviços:', serviceIdsParam)
-      console.log('URL:', `/api/availability?date=${date}&serviceIds=${serviceIdsParam}`)
-
-      const response = await fetch(`/api/availability?date=${date}&serviceIds=${serviceIdsParam}`)
-      
-      if (!response.ok) {
-        throw new Error('Erro ao buscar horários disponíveis')
+      const customerRes = await fetch(`/api/customers/${user?.id}`)
+      if (customerRes.ok) {
+        const customerData = await customerRes.json()
+        setCars(customerData.cars || [])
       }
-
-      const data = await response.json()
-      console.log('Resposta:', data)
-      console.log('Horários disponíveis:', data.availableTimes)
-      setAvailableTimes(data.availableTimes || [])
     } catch (err) {
-      console.error('Erro ao carregar horários:', err)
-      setAvailableTimes([])
+      console.error('Erro ao recarregar dados:', err)
     }
   }
 
-  async function onSubmit(data: FormData) {
-    if (selectedServices.length === 0) {
-      setError('Selecione pelo menos um serviço')
-      return
-    }
-
-    if (!data.carId) {
+  async function handleGuidedContinue(data: { services: Service[]; date: string; time: string }) {
+    if (cars.length === 0) {
       setError('Você precisa cadastrar um veículo primeiro')
+      setShowNewCarModal(true)
       return
     }
 
     try {
-      setSubmitting(true)
       setError(null)
 
-      const totalDuration = selectedServices.reduce((sum, serviceId) => {
-        const service = services.find(s => s.id === serviceId)
-        return sum + (service?.durationMinutes || 0)
+      const totalDuration = data.services.reduce((sum, service) => {
+        return sum + (service.durationMinutes || 0)
       }, 0)
 
       const startDatetime = `${data.date}T${data.time}:00`
@@ -181,23 +141,25 @@ export default function NovoAgendamentoPage() {
         "yyyy-MM-dd'T'HH:mm:ss"
       )
 
-      const totalPrice = selectedServices.reduce((sum, serviceId) => {
-        const service = services.find(s => s.id === serviceId)
-        return sum + Number(service?.price || 0)
+      const totalPrice = data.services.reduce((sum, service) => {
+        return sum + Number(service.price || 0)
       }, 0)
 
+      // Usar o primeiro carro do cliente
+      const carId = cars[0]?.id
+      
       const response = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerId: user?.id,
-          carId: data.carId,
+          carId,
           startDatetime,
           endDatetime,
           totalPrice,
           status: 'PENDING',
-          serviceIds: selectedServices,
-          notes: data.notes || null
+          serviceIds: data.services.map(s => s.id),
+          notes: null
         })
       })
 
@@ -206,14 +168,10 @@ export default function NovoAgendamentoPage() {
         throw new Error(errorData.error || 'Erro ao criar agendamento')
       }
 
-      setSuccess(true)
-      setTimeout(() => {
-        router.push('/cliente')
-      }, 2000)
+      // Redirecionar imediatamente
+      router.push('/cliente')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao agendar')
-    } finally {
-      setSubmitting(false)
     }
   }
 
@@ -225,38 +183,8 @@ export default function NovoAgendamentoPage() {
     return null
   }
 
-  if (cars.length === 0) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <h1 className="text-2xl font-bold mb-4">Cadastre seu Veículo</h1>
-          <Alert 
-            type="warning" 
-            message="Você precisa cadastrar um veículo antes de fazer um agendamento."
-          />
-          <div className="mt-6">
-            <Button onClick={() => router.push('/cliente/perfil')}>
-              Ir para Meu Perfil
-            </Button>
-          </div>
-        </Card>
-      </div>
-    )
-  }
-
-  const totalPrice = selectedServices.reduce((sum, serviceId) => {
-    const service = services.find(s => s.id === serviceId)
-    return sum + Number(service?.price || 0)
-  }, 0)
-
-  const totalDuration = selectedServices.reduce((sum, serviceId) => {
-    const service = services.find(s => s.id === serviceId)
-    return sum + (service?.durationMinutes || 0)
-  }, 0)
-
   // Verificar se precisa de pagamento antecipado (usando configurações)
   const requiresAdvancePayment = reputationSettings.enabled && customerRating < reputationSettings.minForAdvance
-  const advancePaymentAmount = totalPrice * (reputationSettings.advancePercent / 100)
 
   // Função para renderizar estrelas
   function renderStars(rating: number) {
@@ -278,7 +206,6 @@ export default function NovoAgendamentoPage() {
       <h1 className="text-3xl font-bold mb-6">Novo Agendamento</h1>
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
-      {success && <Alert type="success" message="Agendamento criado com sucesso! Redirecionando..." />}
 
       {/* Card de Reputação - só mostra se o sistema estiver ativado */}
       {reputationSettings.enabled && (
@@ -322,11 +249,6 @@ export default function NovoAgendamentoPage() {
                 Devido ao seu histórico de faltas, será necessário realizar o pagamento antecipado 
                 de <span className="font-bold">{reputationSettings.advancePercent}% do valor total</span> para confirmar o agendamento.
               </p>
-              {selectedServices.length > 0 && (
-                <p className="text-lg font-bold text-red-400 mt-2">
-                  Valor antecipado: R$ {advancePaymentAmount.toFixed(2)}
-                </p>
-              )}
               {reputationSettings.recoveryOnShow && (
                 <p className="text-xs text-green-400 mt-2">
                   💡 Ao comparecer a este agendamento, sua nota voltará para 5.0!
@@ -337,75 +259,18 @@ export default function NovoAgendamentoPage() {
         </Card>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <ServiceSelector
-          services={services}
-          selected={selectedServices}
-          onChange={(ids) => setSelectedServices(ids)}
-        />
+      {/* GuidedBooking - Fluxo moderno de agendamento */}
+      <GuidedBooking
+        onContinue={handleGuidedContinue}
+      />
 
-        <Card>
-          <h2 className="text-xl font-semibold mb-4">Dados do Agendamento</h2>
-          
-          <Select
-            label="Veículo"
-            {...register('carId', { required: 'Selecione um veículo' })}
-            error={errors.carId?.message}
-            required
-          >
-            <option value="">Selecione...</option>
-            {cars.map((car) => (
-              <option key={car.id} value={car.id}>
-                {car.model} - {car.plate}
-              </option>
-            ))}
-          </Select>
-
-          <Input
-            label="Data"
-            type="date"
-            {...register('date', { required: 'Selecione uma data' })}
-            error={errors.date?.message}
-            min={format(new Date(), 'yyyy-MM-dd')}
-            required
-          />
-
-          {watchDate && selectedServices.length > 0 && (
-            <Select
-              label="Horário"
-              {...register('time', { required: 'Selecione um horário' })}
-              error={errors.time?.message}
-              required
-            >
-              <option value="">Selecione...</option>
-              {availableTimes.length === 0 ? (
-                <option disabled>Nenhum horário disponível</option>
-              ) : (
-                availableTimes.map((time) => (
-                  <option key={time} value={time}>
-                    {time}
-                  </option>
-                ))
-              )}
-            </Select>
-          )}
-
-          <Textarea
-            label="Observações (opcional)"
-            {...register('notes')}
-            placeholder="Alguma observação especial sobre o serviço..."
-          />
-        </Card>
-
-        <div className="flex gap-4">
-          <Button type="submit" disabled={submitting || selectedServices.length === 0}>
-            {submitting ? 'Agendando...' : 'Confirmar Agendamento'}
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => router.push('/cliente')}>
-            Cancelar
-          </Button>
-        </div>
-      </form>
+      {/* Modal Novo Carro */}
+      <QuickCarRegistration
+        isOpen={showNewCarModal}
+        onClose={() => setShowNewCarModal(false)}
+        onSuccess={handleCarRegistrationSuccess}
+        customerId={user?.id || ''}
+      />
     </div>
   )
 }

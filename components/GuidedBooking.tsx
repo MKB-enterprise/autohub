@@ -124,15 +124,16 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0)
   const totalDuration = selectedServices.reduce((sum, s) => sum + (s.durationMinutes || 0), 0)
 
-  // In embedded mode, handoff only at confirmation step
-  useEffect(() => {
-    if (!onContinue) return
-    if (currentStep !== 3) return
-    if (!selectedServices.length || !selectedDate || !time) return
-    const dateStr = format(selectedDate, 'yyyy-MM-dd')
-    onContinue({ services: selectedServices, date: dateStr, time })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep])
+  // In embedded mode, handoff only at confirmation step - DISABLED to show full UI
+  // User wants to see and interact with the full GuidedBooking flow even when embedded
+  // useEffect(() => {
+  //   if (!onContinue) return
+  //   if (currentStep !== 3) return
+  //   if (!selectedServices.length || !selectedDate || !time) return
+  //   const dateStr = format(selectedDate, 'yyyy-MM-dd')
+  //   onContinue({ services: selectedServices, date: dateStr, time })
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [currentStep])
 
   function resetScheduling() {
     setStepDate(null)

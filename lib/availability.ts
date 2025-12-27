@@ -459,8 +459,14 @@ export async function validateAppointmentSlot(
   console.log('=== VALIDAÇÃO DE SLOT ===')
   console.log('Horário solicitado:', startDatetime)
   console.log('Fim do serviço (com pausa almoço se aplicável):', endDatetime)
+  console.log('Duração total (minutos):', totalDuration)
   console.log('Agendamentos existentes no dia:', existingAppointments.length)
-  console.log('maxCarsPerSlot:', settings.maxCarsPerSlot)
+  console.log('maxCarsPerSlot configurado:', settings.maxCarsPerSlot)
+  console.log('BusinessId usado:', businessId || 'null (single-tenant)')
+  
+  if (settings.maxCarsPerSlot === 0) {
+    console.log('⚠️  PROBLEMA: maxCarsPerSlot está configurado como 0!')
+  }
 
   // Verifica sobreposição
   const overlappingAppointments = existingAppointments.filter((appointment: { startDatetime: Date; endDatetime: Date }) => {
@@ -471,8 +477,10 @@ export async function validateAppointmentSlot(
   
   const overlappingCount = overlappingAppointments.length
   console.log('Total de conflitos:', overlappingCount)
+  console.log(`Condição: ${overlappingCount} >= ${settings.maxCarsPerSlot} = ${overlappingCount >= settings.maxCarsPerSlot}`)
 
   if (overlappingCount >= settings.maxCarsPerSlot) {
+    console.log(`❌ BLOQUEADO: ${overlappingCount} conflito(s), limite é ${settings.maxCarsPerSlot}`)
     return { valid: false, error: 'Horário sem disponibilidade (capacidade máxima atingida)' }
   }
 
