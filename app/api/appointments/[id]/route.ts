@@ -39,6 +39,62 @@ export async function GET(
   }
 }
 
+async function writeOffInventory(appointmentId: string, businessId: string) {
+  const appointment = await prisma.appointment.findUnique({
+    where: { id: appointmentId },
+    include: {
+      appointmentServices: { select: { serviceId: true } }
+    }
+  })
+
+  if (!appointment) return
+  const serviceIds = appointment.appointmentServices.map((s) => s.serviceId)
+  if (serviceIds.length === 0) return
+
+  const consumptions = await prisma.serviceProduct.findMany({
+    where: { serviceId: { in: serviceIds } },
+    include: { product: true }
+  })
+
+  const grouped = consumptions.reduce<Record<string, number>>((acc, item) => {
+    acc[item.productId] = (acc[item.productId] || 0) + Number(item.quantity)
+    return acc
+  }, {})
+
+  await prisma.$transaction(async (tx) => {
+    for (const [productId, qty] of Object.entries(grouped)) {
+      const product = await tx.product.findFirst({ where: { id: productId, businessId } })
+      if (!product) continue
+      const newStock = product.currentStock - qty
+      if (newStock < 0) {
+        throw new Error(`Estoque insuficiente para ${product.name}`)
+      }
+
+      await tx.inventoryMovement.create({
+        data: {
+          businessId,
+          productId,
+          appointmentId,
+          movementType: 'SERVICE_OUT',
+          quantity: qty,
+          unitCost: product.cost,
+          note: 'Baixa automática por conclusão de serviço'
+        }
+      })
+
+      await tx.product.update({
+        where: { id: productId },
+        data: { currentStock: newStock }
+      })
+    }
+
+    await tx.appointment.update({
+      where: { id: appointmentId },
+      data: { inventoryWrittenOff: true, finalizedAt: new Date() }
+    })
+  })
+}
+
 // PATCH /api/appointments/[id] - Atualizar agendamento
 export async function PATCH(
   request: NextRequest,
@@ -137,6 +193,10 @@ export async function PATCH(
           }
         }
       })
+
+      if (appointment.status === 'COMPLETED' && !appointment.inventoryWrittenOff) {
+        await writeOffInventory(appointment.id, appointment.businessId)
+      }
 
       // === SISTEMA DE REPUTAÇÃO ===
       // Atualizar rating do cliente quando status muda para NO_SHOW ou COMPLETED
@@ -277,6 +337,10 @@ export async function PATCH(
           }
         }
       })
+
+      if (appointment.status === 'COMPLETED' && !appointment.inventoryWrittenOff) {
+        await writeOffInventory(appointment.id, appointment.businessId)
+      }
 
       return NextResponse.json(appointment)
     }

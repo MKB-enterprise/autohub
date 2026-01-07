@@ -1,324 +1,597 @@
+/**
+ * Tela de Configurações da Empresa (Admin/Owner Dashboard)
+ * Permite editar: branding, horários, capacidade, cards, contato, notificações
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/Button'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/AuthContext'
+import { useTenant } from '@/lib/TenantContext'
+import { withTenantHeaders } from '@/lib/tenant-client'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
+import {
+  UpdateBrandingDto,
+  UpdateHoursDto,
+  UpdateCapacityDto,
+  UpdateCardsDto,
+  UpdateContactDto
+} from '@/lib/tenant-settings'
 import { Card } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Loading } from '@/components/ui/Loading'
+import { Textarea } from '@/components/ui/Textarea'
 import { Alert } from '@/components/ui/Alert'
-import { useAsyncForm } from '@/lib/hooks/useAsyncAction'
 
-interface Settings {
-  id: string
-  openingTimeWeekday: string
-  closingTimeWeekday: string
-  maxCarsPerSlot: number
-  timezone: string
-  // Campos de reputação
-  reputationEnabled: boolean
-  reputationNoShowPenalty: number
-  reputationMinForAdvance: number
-  reputationAdvancePercent: number
-  reputationRecoveryOnShow: boolean
-}
+type TabType = 'branding' | 'hours' | 'capacity' | 'cards' | 'contact' | 'notifications'
 
-export default function ConfiguracoesPage() {
-  const [settings, setSettings] = useState<Settings | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [reputationEnabled, setReputationEnabled] = useState(true)
+export default function TenantSettingsPage() {
+  const router = useRouter()
+  const { user, business, loading: authLoading } = useAuth()
+  const { tenant, settings, loading, error: tenantError, refreshSettings } = useTenant()
+  const [activeTab, setActiveTab] = useState<TabType>('branding')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  // Estados para cada seção
+  const [brandingData, setBrandingData] = useState<UpdateBrandingDto>({})
+  const [hoursData, setHoursData] = useState<UpdateHoursDto>({})
+  const [capacityData, setCapacityData] = useState<UpdateCapacityDto>({})
+  const [cardsData, setCardsData] = useState<UpdateCardsDto>({ cards: [] })
+  const [contactData, setContactData] = useState<UpdateContactDto>({})
+
+  // Requer autenticação como admin/business
+  useRequireAuth('admin')
+
+  // Inicializar dados quando settings carregar
   useEffect(() => {
-    loadSettings()
-  }, [])
+    if (settings) {
+      setBrandingData({
+        displayName: settings.branding.displayName,
+        theme: settings.branding.theme,
+        footerText: settings.branding.footerText || undefined
+      })
+      setHoursData({
+        timezone: settings.hours.timezone,
+        openingHours: settings.hours.openingHours,
+        slotDurationMinutes: settings.hours.slotDurationMinutes,
+        minimumAdvanceBookingHours: settings.hours.minimumAdvanceBookingHours,
+        cancellationPolicyHours: settings.hours.cancellationPolicyHours
+      })
+      setCapacityData({
+        capacityPerSlot: settings.capacity.capacityPerSlot,
+        enableOverbooking: settings.capacity.enableOverbooking,
+        maxBookingsPerDay: settings.capacity.maxBookingsPerDay || undefined
+      })
+      setCardsData({
+        cards: settings.cards.cards
+      })
+      setContactData({
+        whatsapp: settings.contact.whatsapp || undefined,
+        phone: settings.contact.phone || undefined,
+        address: settings.contact.address
+          ? {
+              street: settings.contact.address.street || undefined,
+              city: settings.contact.address.city || undefined,
+              state: settings.contact.address.state || undefined,
+              zipcode: settings.contact.address.zipcode || undefined
+            }
+          : undefined,
+        social: settings.contact.social
+          ? {
+              instagram: settings.contact.social.instagram || undefined,
+              facebook: settings.contact.social.facebook || undefined,
+              linkedin: settings.contact.social.linkedin || undefined
+            }
+          : undefined
+      })
+    }
+  }, [settings])
 
-  async function loadSettings() {
+  async function handleSave(section: TabType, data: any) {
     try {
-      setLoading(true)
-      const response = await fetch('/api/settings')
-      
-      if (!response.ok) {
-        throw new Error('Erro ao carregar configurações')
+      setIsSaving(true)
+      setSaveMessage(null)
+
+      const payload: any = {}
+      switch (section) {
+        case 'branding':
+          payload.branding = data
+          break
+        case 'hours':
+          payload.hours = data
+          break
+        case 'capacity':
+          payload.capacity = data
+          break
+        case 'cards':
+          payload.cards = data
+          break
+        case 'contact':
+          payload.contact = data
+          break
       }
 
-      const data = await response.json()
-      setSettings(data)
-      setReputationEnabled(data.reputationEnabled)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro desconhecido')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const { onSubmit: handleSubmit, isSubmitting: saving } = useAsyncForm({
-    onSubmit: async (e) => {
-    const formData = new FormData(e.currentTarget)
-
-    const noShowPenalty = formData.get('reputationNoShowPenalty')
-    const minForAdvance = formData.get('reputationMinForAdvance')
-    const advancePercent = formData.get('reputationAdvancePercent')
-
-    const response = await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          openingTimeWeekday: formData.get('openingTimeWeekday'),
-          closingTimeWeekday: formData.get('closingTimeWeekday'),
-          maxCarsPerSlot: parseInt(formData.get('maxCarsPerSlot') as string),
-          timezone: formData.get('timezone'),
-          // Campos de reputação
-          reputationEnabled: reputationEnabled,
-          // Só envia os valores numéricos se existirem (sistema ativado)
-          ...(noShowPenalty && { reputationNoShowPenalty: parseFloat(noShowPenalty as string) }),
-          ...(minForAdvance && { reputationMinForAdvance: parseFloat(minForAdvance as string) }),
-          ...(advancePercent && { reputationAdvancePercent: parseInt(advancePercent as string) }),
-          ...(reputationEnabled && { reputationRecoveryOnShow: formData.get('reputationRecoveryOnShow') === 'on' })
-        })
+      const response = await fetch('/api/tenant/settings', {
+        method: 'PUT',
+        ...withTenantHeaders({
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }),
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Erro ao salvar configurações')
+        const error = await response.json()
+        throw new Error(error.error || 'Erro ao salvar')
       }
 
-      return await response.json()
-    },
-    onSuccess: (data) => {
-      setSettings(data)
-      setSuccess('Configurações salvas com sucesso!')
-    },
-    onError: (err) => {
-      setError(err.message)
-    }
-  })
+      setSaveMessage({
+        type: 'success',
+        text: 'Configurações salvas com sucesso!'
+      })
 
-  if (loading) {
-    return <Loading />
+      // Recarregar settings
+      await refreshSettings()
+    } catch (err) {
+      setSaveMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Erro ao salvar'
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (authLoading || loading) {
+    return <div className="p-6">Carregando...</div>
+  }
+
+  if (!user && !business) {
+    return null
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-3xl font-bold text-white">Configurações</h1>
-        <p className="text-gray-400 mt-1">Configurações da agenda</p>
+        <h1 className="text-3xl font-bold">Configurações da Empresa</h1>
+        <p className="text-gray-600 mt-2">{tenant?.name || 'default'}</p>
       </div>
 
-      {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
-      {success && <Alert type="success" message={success} onClose={() => setSuccess(null)} />}
+      {saveMessage && <Alert type={saveMessage.type} message={saveMessage.text} />}
 
-      <Card>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">Horário de Funcionamento</h2>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Abertura"
-                name="openingTimeWeekday"
-                type="time"
-                defaultValue={settings?.openingTimeWeekday}
-                required
-              />
-              <Input
-                label="Fechamento"
-                name="closingTimeWeekday"
-                type="time"
-                defaultValue={settings?.closingTimeWeekday}
-                required
-              />
-            </div>
+      {/* Tabs */}
+      <div className="flex gap-2 border-b">
+        {(['branding', 'hours', 'capacity', 'cards', 'contact', 'notifications'] as TabType[]).map(
+          (tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2 border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {getTabLabel(tab)}
+            </button>
+          )
+        )}
+      </div>
 
-            <div className="text-sm text-gray-400">
-              <p>Define o horário de funcionamento da estética.</p>
-            </div>
-          </div>
+      {/* Conteúdo das Tabs */}
+      {activeTab === 'branding' && (
+        <BrandingSection data={brandingData} onChange={setBrandingData} onSave={handleSave} saving={isSaving} />
+      )}
 
-          <div className="border-t border-gray-700 pt-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Capacidade de Atendimento</h2>
-            
+      {activeTab === 'hours' && (
+        <HoursSection data={hoursData} onChange={setHoursData} onSave={handleSave} saving={isSaving} />
+      )}
+
+      {activeTab === 'capacity' && (
+        <CapacitySection data={capacityData} onChange={setCapacityData} onSave={handleSave} saving={isSaving} />
+      )}
+
+      {activeTab === 'cards' && (
+        <CardsSection data={cardsData} onChange={setCardsData} onSave={handleSave} saving={isSaving} />
+      )}
+
+      {activeTab === 'contact' && (
+        <ContactSection data={contactData} onChange={setContactData} onSave={handleSave} saving={isSaving} />
+      )}
+
+      {activeTab === 'notifications' && (
+        <div className="p-6 bg-blue-50 rounded-lg">
+          <p>Configurações de notificações em breve...</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function getTabLabel(tab: TabType): string {
+  const labels: Record<TabType, string> = {
+    branding: 'Branding',
+    hours: 'Horários',
+    capacity: 'Capacidade',
+    cards: 'Cards',
+    contact: 'Contato',
+    notifications: 'Notificações'
+  }
+  return labels[tab]
+}
+
+// Componentes de seção
+function BrandingSection({
+  data,
+  onChange,
+  onSave,
+  saving
+}: {
+  data: UpdateBrandingDto
+  onChange: (data: UpdateBrandingDto) => void
+  onSave: (section: TabType, data: any) => void
+  saving: boolean
+}) {
+  return (
+    <Card>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Nome da Empresa</label>
+          <Input
+            value={data.displayName || ''}
+            onChange={(e) => onChange({ ...data, displayName: e.target.value })}
+            placeholder="Nome que aparecerá no site"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Logo da Empresa</label>
+          <div className="space-y-3">
             <Input
-              label="Quantidade de boxes/vagas simultâneas"
-              name="maxCarsPerSlot"
-              type="number"
-              min="1"
-              defaultValue={settings?.maxCarsPerSlot}
-              required
+              value={data.logoUrl || ''}
+              onChange={(e) => onChange({ ...data, logoUrl: e.target.value })}
+              placeholder="https://exemplo.com/logo.png"
             />
-
-            <div className="text-sm text-gray-400">
-              <p>Define quantos carros podem ser atendidos ao mesmo tempo.</p>
-              <p className="mt-1">O sistema automaticamente bloqueia horários ocupados considerando a duração dos serviços + 15min de tolerância.</p>
+            <div className="bg-gray-800 p-4 rounded-lg space-y-2">
+              <p className="text-xs font-medium text-gray-300">📐 Especificações Técnicas:</p>
+              <ul className="text-xs text-gray-400 space-y-1 ml-4">
+                <li>• <strong>Formato:</strong> PNG ou SVG (transparente recomendado)</li>
+                <li>• <strong>Dimensões:</strong> Mínimo 200x50px, máximo 400x100px</li>
+                <li>• <strong>Proporção:</strong> Horizontal (4:1 ou 3:1 ideal)</li>
+                <li>• <strong>Tamanho:</strong> Máximo 500KB</li>
+                <li>• <strong>Fundo:</strong> Transparente para melhor adaptação</li>
+              </ul>
+              {data.logoUrl && (
+                <div className="mt-3 pt-3 border-t border-gray-700">
+                  <p className="text-xs font-medium text-gray-300 mb-2">Preview:</p>
+                  <div className="bg-gray-900 p-3 rounded flex items-center justify-center">
+                    <img src={data.logoUrl} alt="Logo preview" className="max-h-12 max-w-full object-contain" onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+        </div>
 
-          <div className="border-t border-gray-700 pt-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Fuso Horário</h2>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Timezone <span className="text-red-500">*</span>
-              </label>
-              <select
-                name="timezone"
-                defaultValue={settings?.timezone}
-                required
-                className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-              >
-                <option value="America/Sao_Paulo">America/Sao_Paulo (Brasília)</option>
-                <option value="America/Manaus">America/Manaus</option>
-                <option value="America/Rio_Branco">America/Rio_Branco</option>
-                <option value="America/Noronha">America/Noronha</option>
-              </select>
-            </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Texto do Rodapé</label>
+          <Textarea
+            value={data.footerText || ''}
+            onChange={(e) => onChange({ ...data, footerText: e.target.value })}
+            placeholder="Texto opcional do rodapé"
+            rows={3}
+          />
+        </div>
 
-            <div className="text-sm text-gray-400">
-              <p>Define o fuso horário usado para os agendamentos.</p>
-            </div>
-          </div>
+        <Button
+          onClick={() => onSave('branding', data)}
+          disabled={saving}
+          className="w-full"
+        >
+          {saving ? 'Salvando...' : 'Salvar Branding'}
+        </Button>
+      </div>
+    </Card>
+  )
+}
 
-          {/* Seção de Reputação */}
-          <div className="border-t border-gray-700 pt-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">⭐ Sistema de Reputação</h2>
-              <label className="flex items-center gap-2 cursor-pointer">
+function HoursSection({
+  data,
+  onChange,
+  onSave,
+  saving
+}: {
+  data: UpdateHoursDto
+  onChange: (data: UpdateHoursDto) => void
+  onSave: (section: TabType, data: any) => void
+  saving: boolean
+}) {
+  return (
+    <Card>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Timezone</label>
+          <Input
+            value={data.timezone || 'America/Sao_Paulo'}
+            onChange={(e) => onChange({ ...data, timezone: e.target.value })}
+            placeholder="America/Sao_Paulo"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Duração do Slot (minutos)</label>
+          <Input
+            type="number"
+            value={data.slotDurationMinutes || 30}
+            onChange={(e) => onChange({ ...data, slotDurationMinutes: parseInt(e.target.value) })}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Tempo Mínimo de Antecedência (horas)</label>
+          <Input
+            type="number"
+            value={data.minimumAdvanceBookingHours || 0}
+            onChange={(e) => onChange({ ...data, minimumAdvanceBookingHours: parseInt(e.target.value) })}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Política de Cancelamento (horas)</label>
+          <Input
+            type="number"
+            value={data.cancellationPolicyHours || 24}
+            onChange={(e) => onChange({ ...data, cancellationPolicyHours: parseInt(e.target.value) })}
+          />
+        </div>
+
+        <Button
+          onClick={() => onSave('hours', data)}
+          disabled={saving}
+          className="w-full"
+        >
+          {saving ? 'Salvando...' : 'Salvar Horários'}
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+function CapacitySection({
+  data,
+  onChange,
+  onSave,
+  saving
+}: {
+  data: UpdateCapacityDto
+  onChange: (data: UpdateCapacityDto) => void
+  onSave: (section: TabType, data: any) => void
+  saving: boolean
+}) {
+  return (
+    <Card>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Capacidade por Slot</label>
+          <Input
+            type="number"
+            value={data.capacityPerSlot || 2}
+            onChange={(e) => onChange({ ...data, capacityPerSlot: parseInt(e.target.value) })}
+          />
+        </div>
+
+        <div>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={data.enableOverbooking || false}
+              onChange={(e) => onChange({ ...data, enableOverbooking: e.target.checked })}
+              className="rounded"
+            />
+            <span className="text-sm font-medium">Permitir Overbooking</span>
+          </label>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Máximo de Agendamentos por Dia</label>
+          <Input
+            type="number"
+            value={data.maxBookingsPerDay || ''}
+            onChange={(e) => onChange({ ...data, maxBookingsPerDay: e.target.value ? parseInt(e.target.value) : undefined })}
+            placeholder="Deixar em branco para ilimitado"
+          />
+        </div>
+
+        <Button
+          onClick={() => onSave('capacity', data)}
+          disabled={saving}
+          className="w-full"
+        >
+          {saving ? 'Salvando...' : 'Salvar Capacidade'}
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+function CardsSection({
+  data,
+  onChange,
+  onSave,
+  saving
+}: {
+  data: UpdateCardsDto
+  onChange: (data: UpdateCardsDto) => void
+  onSave: (section: TabType, data: any) => void
+  saving: boolean
+}) {
+  return (
+    <Card>
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          Cards são atalhos na página inicial. Você pode ativar/desativar, reordenar e editar aqui.
+        </p>
+
+        <div className="space-y-3">
+          {data.cards.map((card, idx) => (
+            <div key={card.id} className="border rounded-lg p-3 space-y-2">
+              <div className="flex items-center justify-between">
                 <input
                   type="checkbox"
-                  checked={reputationEnabled}
-                  onChange={(e) => setReputationEnabled(e.target.checked)}
-                  className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500"
+                  checked={card.isActive !== false}
+                  onChange={(e) => {
+                    const newCards = [...data.cards]
+                    newCards[idx].isActive = e.target.checked
+                    onChange({ cards: newCards })
+                  }}
+                  className="rounded"
                 />
-                <span className="text-sm text-gray-300">Ativar</span>
-              </label>
-            </div>
-
-            {reputationEnabled ? (
-              <div className="space-y-4 p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Nota após falta
-                    </label>
-                    <input
-                      type="number"
-                      name="reputationNoShowPenalty"
-                      step="0.5"
-                      min="0"
-                      max="5"
-                      defaultValue={settings?.reputationNoShowPenalty}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Nota que o cliente fica após uma falta</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      Nota mínima (sem antecipado)
-                    </label>
-                    <input
-                      type="number"
-                      name="reputationMinForAdvance"
-                      step="0.5"
-                      min="0"
-                      max="5"
-                      defaultValue={settings?.reputationMinForAdvance}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Abaixo desta nota, exige antecipado</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1">
-                      % Pagamento Antecipado
-                    </label>
-                    <input
-                      type="number"
-                      name="reputationAdvancePercent"
-                      min="0"
-                      max="100"
-                      defaultValue={settings?.reputationAdvancePercent}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-800 text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Porcentagem exigida para clientes com nota baixa</p>
-                  </div>
-                  <div className="flex items-center">
-                    <label className="flex items-center gap-2 cursor-pointer mt-4">
-                      <input
-                        type="checkbox"
-                        name="reputationRecoveryOnShow"
-                        defaultChecked={settings?.reputationRecoveryOnShow}
-                        className="w-5 h-5 rounded border-gray-600 bg-gray-800 text-cyan-500 focus:ring-cyan-500"
-                      />
-                      <span className="text-sm text-gray-300">Reabilitar ao comparecer</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="text-sm text-gray-400 p-3 bg-gray-900/50 rounded-lg">
-                  <p className="font-medium text-white mb-2">📋 Como funciona:</p>
-                  <ul className="space-y-1 list-disc list-inside text-xs">
-                    <li>Cliente começa com nota <span className="text-green-400">5.0</span></li>
-                    <li>Uma falta muda a nota para <span className="text-red-400">{settings?.reputationNoShowPenalty || 2.5}</span></li>
-                    <li>Nota abaixo de <span className="text-amber-400">{settings?.reputationMinForAdvance || 3.0}</span> exige <span className="text-amber-400">{settings?.reputationAdvancePercent || 50}%</span> antecipado</li>
-                    {settings?.reputationRecoveryOnShow !== false && (
-                      <li>Ao comparecer pagando antecipado, nota volta para <span className="text-green-400">5.0</span></li>
-                    )}
-                  </ul>
-                </div>
+                <span className="font-medium">{card.title}</span>
               </div>
-            ) : (
-              <div className="p-4 bg-gray-800/30 rounded-lg border border-gray-700/50">
-                <p className="text-gray-500 text-sm">
-                  ⚪ Sistema de reputação desativado. Todos os clientes podem agendar normalmente sem restrições.
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="flex gap-4 pt-4">
-            <Button type="submit" disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar Configurações'}
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card>
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-white">Como funciona o agendamento</h2>
-          <div className="text-sm text-gray-400 space-y-3">
-            <div className="flex gap-3">
-              <span className="text-cyan-400">📅</span>
-              <p>Os horários são disponibilizados a cada <strong className="text-white">30 minutos</strong> (8:00, 8:30, 9:00...)</p>
+              <Input
+                value={card.title}
+                onChange={(e) => {
+                  const newCards = [...data.cards]
+                  newCards[idx].title = e.target.value
+                  onChange({ cards: newCards })
+                }}
+                placeholder="Título"
+              />
+              <Input
+                value={card.subtitle}
+                onChange={(e) => {
+                  const newCards = [...data.cards]
+                  newCards[idx].subtitle = e.target.value
+                  onChange({ cards: newCards })
+                }}
+                placeholder="Subtítulo"
+              />
             </div>
-            <div className="flex gap-3">
-              <span className="text-cyan-400">⏱️</span>
-              <p>Ao agendar um serviço, o sistema bloqueia o tempo necessário baseado na <strong className="text-white">duração do serviço</strong></p>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-cyan-400">⏰</span>
-              <p>É adicionada uma <strong className="text-white">tolerância de 15 minutos</strong> para atrasos do cliente</p>
-            </div>
-            <div className="flex gap-3">
-              <span className="text-cyan-400">🚗</span>
-              <p>Se você tem múltiplos boxes, pode atender mais de um carro no mesmo horário</p>
-            </div>
-          </div>
+          ))}
         </div>
-      </Card>
 
-      <Card>
-        <div className="space-y-2">
-          <h2 className="text-lg font-semibold text-white">⚠️ Importante</h2>
-          <div className="text-sm text-gray-400 space-y-2">
-            <p>• Mudanças no horário de funcionamento não afetam agendamentos já criados.</p>
-            <p>• Reduzir a capacidade de carros pode causar conflitos com agendamentos existentes.</p>
-            <p>• É recomendado revisar a agenda após fazer alterações significativas.</p>
-          </div>
+        <Button
+          onClick={() => onSave('cards', data)}
+          disabled={saving}
+          className="w-full"
+        >
+          {saving ? 'Salvando...' : 'Salvar Cards'}
+        </Button>
+      </div>
+    </Card>
+  )
+}
+
+function ContactSection({
+  data,
+  onChange,
+  onSave,
+  saving
+}: {
+  data: UpdateContactDto
+  onChange: (data: UpdateContactDto) => void
+  onSave: (section: TabType, data: any) => void
+  saving: boolean
+}) {
+  return (
+    <Card>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">WhatsApp</label>
+          <Input
+            value={data.whatsapp || ''}
+            onChange={(e) => onChange({ ...data, whatsapp: e.target.value })}
+            placeholder="(11) 99999-9999"
+          />
         </div>
-      </Card>
-    </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Telefone</label>
+          <Input
+            value={data.phone || ''}
+            onChange={(e) => onChange({ ...data, phone: e.target.value })}
+            placeholder="(11) 3333-3333"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Endereço</label>
+          <Input
+            value={data.address?.street || ''}
+            onChange={(e) =>
+              onChange({
+                ...data,
+                address: { ...data.address, street: e.target.value }
+              })
+            }
+            placeholder="Rua"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            value={data.address?.city || ''}
+            onChange={(e) =>
+              onChange({
+                ...data,
+                address: { ...data.address, city: e.target.value }
+              })
+            }
+            placeholder="Cidade"
+          />
+          <Input
+            value={data.address?.state || ''}
+            onChange={(e) =>
+              onChange({
+                ...data,
+                address: { ...data.address, state: e.target.value }
+              })
+            }
+            placeholder="Estado"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Instagram</label>
+          <Input
+            value={data.social?.instagram || ''}
+            onChange={(e) =>
+              onChange({
+                ...data,
+                social: { ...data.social, instagram: e.target.value }
+              })
+            }
+            placeholder="@seuinstagram"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Facebook</label>
+          <Input
+            value={data.social?.facebook || ''}
+            onChange={(e) =>
+              onChange({
+                ...data,
+                social: { ...data.social, facebook: e.target.value }
+              })
+            }
+            placeholder="Facebook URL"
+          />
+        </div>
+
+        <Button
+          onClick={() => onSave('contact', data)}
+          disabled={saving}
+          className="w-full"
+        >
+          {saving ? 'Salvando...' : 'Salvar Contato'}
+        </Button>
+      </div>
+    </Card>
   )
 }

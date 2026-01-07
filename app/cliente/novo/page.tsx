@@ -1,23 +1,26 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Loading } from '@/components/ui/Loading'
 import { Alert } from '@/components/ui/Alert'
-import GuidedBooking from '@/components/GuidedBooking'
-import QuickCarRegistration from '@/components/QuickCarRegistration'
 import { format, parseISO, addMinutes } from 'date-fns'
+
+// Lazy load dos componentes pesados
+const GuidedBooking = lazy(() => import('@/components/GuidedBooking'))
+const QuickCarRegistration = lazy(() => import('@/components/QuickCarRegistration'))
 
 interface Service {
   id: string
   name: string
   durationMinutes: number
   price: number
-  serviceGroup: string | null
+  serviceGroup?: string | null
 }
 
 interface Car {
@@ -68,10 +71,11 @@ export default function NovoAgendamentoPage() {
   const [error, setError] = useState<string | null>(null)
   const [showNewCarModal, setShowNewCarModal] = useState(false)
 
+  useRequireAuth('customer')
+
+  // Redirecionar admins para a agenda
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login')
-    } else if (user && user.isAdmin) {
+    if (!authLoading && user?.isAdmin) {
       router.push('/agenda')
     } else if (user) {
       loadData()

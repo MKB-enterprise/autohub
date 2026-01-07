@@ -1,6 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -11,6 +14,7 @@ import { Modal } from '@/components/ui/Modal'
 import { Badge } from '@/components/ui/Badge'
 import { useData } from '@/lib/hooks/useFetch'
 import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
+import { useDebounce } from '@/lib/hooks/useDebounce'
 
 interface Category {
   id: string
@@ -47,6 +51,8 @@ function formatDuration(minutes: number): string {
 }
 
 export default function ServicosPage() {
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const { data: services = [], isLoading: loading, mutate } = useData<Service[]>('/api/services')
   const { data: categories = [] } = useData<Category[]>('/api/categories')
   const [error, setError] = useState<string | null>(null)
@@ -56,6 +62,8 @@ export default function ServicosPage() {
   const [selectedService, setSelectedService] = useState<Service | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  
+  useRequireAuth('business-admin')
 
   const loadServices = useCallback(() => {
     mutate()

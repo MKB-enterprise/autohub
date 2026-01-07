@@ -16,6 +16,7 @@ import { AppointmentMenu } from '@/components/AppointmentMenu'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import type { Appointment } from '@/lib/types'
 
 // Use shared `Appointment` type from lib/types to ensure compatibility across components
@@ -58,7 +59,8 @@ const LUNCH_END_HOUR = 13
 
 export default function AgendaPage() {
   const router = useRouter()
-  const { user, loading } = useAuth()
+  const { user, business, loading } = useAuth()
+  useRequireAuth('admin')
   const [currentDate, setCurrentDate] = useState(new Date())
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -71,18 +73,6 @@ export default function AgendaPage() {
   const [suggestedTime, setSuggestedTime] = useState('')
   const [businessNotes, setBusinessNotes] = useState('')
   const [savingReschedule, setSavingReschedule] = useState(false)
-
-  // Bloqueio de acesso: apenas admin
-  useEffect(() => {
-    if (loading) return
-    if (!user) {
-      router.replace('/')
-      return
-    }
-    if (!user.isAdmin) {
-      router.replace('/cliente')
-    }
-  }, [user, loading, router])
 
   // SWR para cache e revalidação automática (só inicia se admin)
   const dateStr = format(currentDate, 'yyyy-MM-dd')

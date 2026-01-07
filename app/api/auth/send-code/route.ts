@@ -1,9 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { getTenantOptional } from '@/lib/tenant-resolver'
 
 export async function POST(request: NextRequest) {
   try {
     const { phone } = await request.json()
+
+    // 1. Tentar resolver tenant normalmente
+    let tenant = await getTenantOptional(request)
+
+    // 2. Se não conseguir, buscar a empresa padrão (primeira empresa ativa)
+    if (!tenant) {
+      const defaultBusiness = await prisma.business.findFirst({
+        where: { isActive: true },
+        select: { id: true, name: true, slug: true, email: true }
+      })
+
+      if (defaultBusiness) {
+        tenant = {
+          tenantId: defaultBusiness.id,
+          tenantSlug: defaultBusiness.slug || 'default',
+          business: {
+            id: defaultBusiness.id,
+            name: defaultBusiness.name,
+            slug: defaultBusiness.slug || 'default',
+            email: defaultBusiness.email
+          }
+        }
+      }
+    }
+
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
 
     if (!phone) {
       return NextResponse.json({ error: 'Telefone é obrigatório' }, { status: 400 })
@@ -20,21 +49,14 @@ export async function POST(request: NextRequest) {
     const verificationCode = '123456'
     const verificationExpiry = new Date(Date.now() + 30 * 60 * 1000)
 
-    // Garantir que exista um business para atrelar o cliente
-    let business = await prisma.business.findFirst()
+    const business = await prisma.business.findUnique({ where: { id: tenant.tenantId } })
     if (!business) {
-      business = await prisma.business.create({
-        data: {
-          name: 'AutoGarage Demo',
-          email: 'demo@autogarage.com',
-          password: 'temp',
-        },
-      })
+      return NextResponse.json({ error: 'Negócio não encontrado para este tenant' }, { status: 400 })
     }
 
     // Buscar ou criar cliente
     let customer = await prisma.customer.findUnique({
-      where: { businessId_phone: { businessId: business.id, phone: normalizedPhone } }
+      where: { businessId_phone: { businessId: tenant.tenantId, phone: normalizedPhone } }
     })
 
     let needsName = false
@@ -43,7 +65,7 @@ export async function POST(request: NextRequest) {
       needsName = !customer.name || customer.name === 'Usuário Temporário' || customer.name.trim() === ''
       // Atualizar código de verificação
       customer = await prisma.customer.update({
-        where: { businessId_phone: { businessId: business.id, phone: normalizedPhone } },
+        where: { businessId_phone: { businessId: tenant.tenantId, phone: normalizedPhone } },
         data: {
           verificationCode,
           verificationExpiry,
@@ -53,7 +75,7 @@ export async function POST(request: NextRequest) {
       // Criar novo cliente temporário
       customer = await prisma.customer.create({
         data: {
-          businessId: business.id,
+          businessId: tenant.tenantId,
           phone: normalizedPhone,
           name: 'Usuário Temporário', // Será atualizado após verificação
           verificationCode,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/auth'
+import { getTenantOptional } from '@/lib/tenant-resolver'
 
 // POST /api/auth/login - Login
 export async function POST(request: NextRequest) {
@@ -16,7 +17,45 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const business = await prisma.business.findFirst()
+    // 1. Tentar resolver tenant normalmente
+    let tenant = await getTenantOptional(request)
+
+    // 2. Se não conseguir, buscar o customer por email para determinar qual é o tenant
+    if (!tenant && email) {
+      const customer = await prisma.customer.findFirst({
+        where: { email },
+        select: { businessId: true }
+      })
+
+      if (customer) {
+        const business = await prisma.business.findUnique({
+          where: { id: customer.businessId },
+          select: { id: true, name: true, slug: true, email: true, isActive: true }
+        })
+
+        if (business && business.isActive) {
+          tenant = {
+            tenantId: business.id,
+            tenantSlug: business.slug || 'default',
+            business: {
+              id: business.id,
+              name: business.name,
+              slug: business.slug || 'default',
+              email: business.email
+            }
+          }
+        }
+      }
+    }
+
+    if (!tenant) {
+      return NextResponse.json(
+        { error: 'Tenant não encontrado' },
+        { status: 400 }
+      )
+    }
+
+    const business = await prisma.business.findUnique({ where: { id: tenant.tenantId } })
     if (!business) {
       return NextResponse.json(
         { error: 'Nenhuma empresa configurada' },
@@ -26,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar cliente
     const customer = await prisma.customer.findFirst({
-      where: { businessId: business.id, email },
+      where: { businessId: tenant.tenantId, email },
       select: { id: true, name: true, email: true, phone: true, isAdmin: true, password: true, businessId: true }
     })
 

@@ -1,7 +1,9 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -12,6 +14,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Badge } from '@/components/ui/Badge'
 import { useData } from '@/lib/hooks/useFetch'
 import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
+import { useDebounce } from '@/lib/hooks/useDebounce'
 
 interface Customer {
   id: string
@@ -30,19 +33,25 @@ interface Customer {
 
 export default function ClientesPage() {
   const router = useRouter()
-  const [error, setError] = useState<string | null>(null)
+  const { user, business, loading: authLoading } = useAuth()
+  useRequireAuth('admin')
   const [success, setSuccess] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  
+  // Debounce do searchTerm para evitar muitas requisições
+  const debouncedSearch = useDebounce(searchTerm, 300)
 
   // SWR para cache e revalidação automática
-  const url = searchTerm 
-    ? `/api/customers?search=${encodeURIComponent(searchTerm)}`
+  const url = debouncedSearch 
+    ? `/api/customers?search=${encodeURIComponent(debouncedSearch)}`
     : '/api/customers'
   const { data: customers = [], isLoading: loading, mutate } = useData<Customer[]>(url)
+  
+  const [error, setError] = useState<string | null>(null)
 
   const loadCustomers = useCallback(() => {
     mutate()

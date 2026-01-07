@@ -2,12 +2,44 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/auth'
+import { getTenantOptional } from '@/lib/tenant-resolver'
 
 // POST /api/auth/register - Registrar novo cliente
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { name, email, phone, password } = body
+
+    // 1. Tentar resolver tenant normalmente
+    let tenant = await getTenantOptional(request)
+
+    // 2. Se não conseguir, buscar a empresa padrão (primeira empresa ativa)
+    if (!tenant) {
+      const defaultBusiness = await prisma.business.findFirst({
+        where: { isActive: true },
+        select: { id: true, name: true, slug: true, email: true }
+      })
+
+      if (defaultBusiness) {
+        tenant = {
+          tenantId: defaultBusiness.id,
+          tenantSlug: defaultBusiness.slug || 'default',
+          business: {
+            id: defaultBusiness.id,
+            name: defaultBusiness.name,
+            slug: defaultBusiness.slug || 'default',
+            email: defaultBusiness.email
+          }
+        }
+      }
+    }
+
+    if (!tenant) {
+      return NextResponse.json(
+        { error: 'Tenant não encontrado' },
+        { status: 400 }
+      )
+    }
 
     console.log('Tentando registrar:', { name, email, phone })
 
@@ -30,6 +62,7 @@ export async function POST(request: NextRequest) {
     if (email) {
       const existingCustomer = await prisma.customer.findFirst({
         where: {
+          businessId: tenant.tenantId,
           OR: [
             { email },
             { phone }
@@ -49,7 +82,7 @@ export async function POST(request: NextRequest) {
     console.log('Gerando hash da senha...')
     const hashedPassword = await bcrypt.hash(password, 10)
 
-    const business = await prisma.business.findFirst()
+    const business = await prisma.business.findUnique({ where: { id: tenant.tenantId } })
     if (!business) {
       return NextResponse.json(
         { error: 'Nenhuma empresa configurada' },
@@ -61,7 +94,7 @@ export async function POST(request: NextRequest) {
     console.log('Criando cliente no banco...')
     const customer = await prisma.customer.create({
       data: {
-        business: { connect: { id: business.id } },
+        business: { connect: { id: tenant.tenantId } },
         name,
         email: email || null,
         phone,
@@ -82,7 +115,7 @@ export async function POST(request: NextRequest) {
     // Gerar token
     const token = generateToken({
       customerId: customer.id,
-      businessId: business.id,
+      businessId: tenant.tenantId,
       email: customer.email || '',
       isAdmin: customer.isAdmin
     })

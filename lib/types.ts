@@ -117,6 +117,7 @@ export interface Customer {
   email?: string
   notes: string | null
   isAdmin: boolean
+  role?: 'super-admin' | 'business-admin' | 'business-employee' | 'customer' // novo campo para roles
   rating: number
   completedCount: number
   noShowCount: number
@@ -160,6 +161,19 @@ export interface Appointment {
     price: number
   }[]
   cancellation?: AppointmentCancellation | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface User {
+  id: string
+  businessId: string
+  email: string
+  password: string
+  fullName: string
+  phone: string | null
+  role: 'OWNER' | 'STAFF' | 'CUSTOMER'
+  isActive: boolean
   createdAt: Date
   updatedAt: Date
 }

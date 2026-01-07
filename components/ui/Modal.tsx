@@ -34,7 +34,10 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             <h3 className="text-xl font-semibold text-white">{title}</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-blue-400 text-2xl leading-none transition-colors"
+              className="text-gray-400 text-2xl leading-none transition-colors hover:opacity-70"
+              style={{ cursor: 'pointer' }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-primary)')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '')}
             >
               ×
             </button>

@@ -13,7 +13,12 @@
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:tenant": "tsx tests/tenant-hardening.ts",
+    "test:plan": "tsx tests/plan-limits.ts",
+    "test:inventory": "tsx tests/inventory-writeoff.ts",
+    "test:budget": "tsx tests/budget-signature.ts",
+    "test:integration": "tsx tests/appointment-finance-flow.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",

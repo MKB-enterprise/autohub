@@ -11,6 +11,8 @@ import { LottieAnimation } from '@/components/ui/LottieAnimation'
 // Quick car registration happens in the appointment page, not here
 import { useAuth } from '@/lib/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTenant } from '@/lib/TenantContext'
+import { withTenant, withTenantHeaders } from '@/lib/tenant-client'
 import carGarageAnimation from '@/public/animations/Car Garage animation.json'
 import interiorAnimation from '@/public/animations/Interior detailing.json'
 import exteriorAnimation from '@/public/animations/Exterior detail.json'
@@ -41,18 +43,27 @@ const groupMeta: Record<string, { label: string; variant: 'info' | 'success' | '
 }
 
 type GuidedBookingProps = {
-  onContinue?: (data: { services: Service[]; date: string; time: string }) => void
+  onContinue?: (data: { services: Service[]; date: string; time: string }) => void | Promise<void>
 }
 
 export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
+  const { tenant } = useTenant()
 
   // Data state
   const [services, setServices] = useState<Service[]>([])
   const [loadingServices, setLoadingServices] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Cache global por tenant para evitar refetch repetido em remounts/refresh dev
+  const cacheKey = tenant?.slug || 'default'
+  const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
+  const servicesCache = (globalThis as any).__guidedServicesCache || new Map<string, { data: Service[]; ts: number }>()
+  const servicesPromises = (globalThis as any).__guidedServicesPromises || new Map<string, Promise<Service[]>>()
+  ;(globalThis as any).__guidedServicesCache = servicesCache
+  ;(globalThis as any).__guidedServicesPromises = servicesPromises
 
   // Flow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
@@ -72,20 +83,53 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   // Car registration is handled on the /agendamentos/novo page
 
   useEffect(() => {
+    if (!tenant?.slug) {
+      setLoadingServices(false)
+      return
+    }
+
+    const cached = servicesCache.get(cacheKey)
+    const now = Date.now()
+    if (cached && now - cached.ts < CACHE_TTL) {
+      setServices(cached.data)
+      setLoadingServices(false)
+      return
+    }
+
     const load = async () => {
+      const existingPromise = servicesPromises.get(cacheKey)
+      if (existingPromise) {
+        const data = await existingPromise
+        setServices(data)
+        setLoadingServices(false)
+        return
+      }
+
+      const promise = (async () => {
+        const res = await fetch(
+          '/api/services?activeOnly=true',
+          withTenantHeaders({ cache: 'no-store' }, tenant.slug)
+        )
+        const data = await res.json()
+        const normalized = Array.isArray(data) ? data : []
+        servicesCache.set(cacheKey, { data: normalized, ts: Date.now() })
+        return normalized
+      })()
+
+      servicesPromises.set(cacheKey, promise)
       try {
         setLoadingServices(true)
-        const res = await fetch('/api/services?activeOnly=true', { cache: 'no-store' })
-        const data = await res.json()
-        setServices(Array.isArray(data) ? data : [])
+        const normalized = await promise
+        setServices(normalized)
       } catch (e) {
         setError('Falha ao carregar serviços')
       } finally {
+        servicesPromises.delete(cacheKey)
         setLoadingServices(false)
       }
     }
     load()
-  }, [])
+  }, [tenant?.slug, cacheKey, servicesCache])
 
   // Initialize selection/date/time from URL params when services are available
   useEffect(() => {
@@ -169,6 +213,11 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   // Availability when date+period selected
   useEffect(() => {
     const fetchTimes = async () => {
+      if (!tenant?.slug) {
+        setAvailableTimes([])
+        return
+      }
+
       if (!selectedServiceIds.length || !selectedDate || !period) {
         setAvailableTimes([])
         return
@@ -180,11 +229,14 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
           serviceIds: selectedServiceIds,
           suggestAlternatives: false
         }
-        const res = await fetch('/api/appointments/availability', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        })
+        const res = await fetch(
+          '/api/appointments/availability',
+          withTenantHeaders({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          }, tenant?.slug)
+        )
         const data = await res.json()
         const times: string[] = (data.availableSlots || []).map((iso: string) => {
           const d = new Date(iso)
@@ -211,7 +263,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
     }
     fetchTimes()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedServiceIds, selectedDate, period])
+  }, [selectedServiceIds, selectedDate, period, tenant?.slug])
 
   // Toggle service selection; reset downstream state when the set changes
   function toggleService(serviceId: string) {
@@ -331,14 +383,14 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
       qs.set('date', dateStr)
       qs.set('time', time)
       qs.set('services', selectedServiceIds.join(','))
-      router.push(`/login?${qs.toString()}`)
+      router.push(withTenant(`/login?${qs.toString()}`, tenant?.slug))
       return
     }
     const qs = new URLSearchParams()
     qs.set('date', dateStr)
     qs.set('time', time)
     qs.set('services', selectedServiceIds.join(','))
-    router.push(`/agendamentos/novo?${qs.toString()}`)
+    router.push(withTenant(`/agendamentos/novo?${qs.toString()}`, tenant?.slug))
   }
 
   return (
@@ -350,8 +402,11 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
           <div className="absolute left-0 right-0 top-[18px] h-[2px] bg-gray-800 -z-10" 
                style={{ marginLeft: '20px', marginRight: '20px' }}>
             <div 
-              className="h-full bg-gradient-to-r from-blue-500 to-blue-400 transition-all duration-500 ease-out"
-              style={{ width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%' }}
+              className="h-full transition-all duration-500 ease-out"
+              style={{ 
+                width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%',
+                backgroundColor: 'var(--color-primary)'
+              }}
             />
           </div>
           
@@ -378,10 +433,10 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   {/* Circle indicator */}
                   <div className={cx(
                     'relative z-10 flex items-center justify-center w-10 h-10 rounded-full border-2 transition-all duration-300',
-                    isActive && 'border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-500/50 scale-110',
+                    isActive && 'text-white scale-110',
                     isCompleted && 'border-green-500 bg-green-500 text-white',
                     !isActive && !isCompleted && 'border-gray-700 bg-gray-900 text-gray-500'
-                  )}>
+                  )} style={isActive ? { borderColor: 'var(--color-primary)', backgroundColor: 'var(--color-primary)', boxShadow: '0 20px 25px -5px rgba(var(--color-primary-rgb, 59 130 246) / 0.5)' } : {}}>
                     {isCompleted ? (
                       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
@@ -484,9 +539,14 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                   className={cx(
                     'rounded-2xl p-6 border text-left transition-all duration-300 group',
                     selectedServiceIds.includes(svc.id)
-                      ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 ring-2 ring-blue-400/50 shadow-lg shadow-blue-500/20'
-                      : 'border-gray-700 bg-gradient-to-br from-gray-800/40 to-gray-900/60 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/10'
+                      ? 'bg-gradient-to-br from-gray-900/30 to-gray-900/30'
+                      : 'border-gray-700 bg-gradient-to-br from-gray-800/40 to-gray-900/60'
                   )}
+                  style={selectedServiceIds.includes(svc.id) ? {
+                    borderColor: 'var(--color-primary)',
+                    borderWidth: '2px',
+                    boxShadow: `0 20px 25px -5px rgba(var(--color-primary-rgb, 59 130 246) / 0.2), inset 0 0 0 2px rgba(var(--color-primary-rgb, 59 130 246) / 0.5)`
+                  } : {}}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="text-white font-bold text-lg flex-1">{svc.name}</div>
@@ -503,7 +563,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
                     <div className="flex items-center gap-4 text-gray-400">
                       <span>⏱️ {svc.durationMinutes} min</span>
                     </div>
-                    <div className="text-blue-400 font-bold group-hover:text-blue-300">R$ {Number(svc.price).toFixed(2)}</div>
+                    <div className="font-bold" style={{ color: 'var(--color-primary)' }}>R$ {Number(svc.price).toFixed(2)}</div>
                   </div>
                 </button>
               ))}
@@ -535,9 +595,10 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button 
                 className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                   stepDate==='TODAY' 
-                    ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
-                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
-                )} 
+                    ? 'bg-gradient-to-br from-gray-900/30 to-gray-900/30 text-white' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300'
+                  )} 
+                  style={stepDate === 'TODAY' ? { borderColor: 'var(--color-primary)', borderWidth: '2px', boxShadow: `inset 0 0 0 2px rgba(var(--color-primary-rgb, 59 130 246) / 0.5)` } : {}}
                 onClick={() => { setStepDate('TODAY'); setSelectedDate(new Date()) }}
               >
                 Hoje
@@ -545,9 +606,10 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button 
                 className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                   stepDate==='TOMORROW' 
-                    ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
-                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
-                )} 
+                    ? 'bg-gradient-to-br from-gray-900/30 to-gray-900/30 text-white' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300'
+                  )} 
+                  style={stepDate === 'TOMORROW' ? { borderColor: 'var(--color-primary)', borderWidth: '2px', boxShadow: `inset 0 0 0 2px rgba(var(--color-primary-rgb, 59 130 246) / 0.5)` } : {}}
                 onClick={() => { setStepDate('TOMORROW'); setSelectedDate(addDays(new Date(),1)) }}
               >
                 Amanhã
@@ -555,9 +617,10 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
               <button 
                 className={cx('p-4 rounded-xl border font-semibold transition-all duration-300', 
                   stepDate==='OTHER' 
-                    ? 'border-blue-500 bg-gradient-to-br from-blue-900/30 to-gray-900/30 text-white ring-2 ring-blue-400/50' 
-                    : 'border-gray-700 bg-gray-800/40 text-gray-300 hover:border-blue-400 hover:bg-gray-800/60'
-                )} 
+                    ? 'bg-gradient-to-br from-gray-900/30 to-gray-900/30 text-white' 
+                    : 'border-gray-700 bg-gray-800/40 text-gray-300'
+                  )} 
+                  style={stepDate === 'OTHER' ? { borderColor: 'var(--color-primary)', borderWidth: '2px', boxShadow: `inset 0 0 0 2px rgba(var(--color-primary-rgb, 59 130 246) / 0.5)` } : {}}
                 onClick={() => { setStepDate('OTHER'); const d = new Date(); setSelectedDate(d) }}
               >
                 Outro dia

@@ -28,7 +28,9 @@ enum SubscriptionStatus {
 
 model Business {
   id                String              @id @default(cuid())
+  slug              String?             @unique
   name              String
+  displayName       String?             @map("display_name")
   email             String              @unique
   phone             String?
   address           String?
@@ -41,6 +43,38 @@ model Business {
   isActive          Boolean             @default(true) @map("is_active")
   createdAt         DateTime            @default(now()) @map("created_at")
   updatedAt         DateTime            @updatedAt @map("updated_at")
+  planId            String?             @map("plan_id")
+  
+  // Branding e Identidade
+  logoUrl           String?             @map("logo_url")
+  faviconUrl        String?             @map("favicon_url")
+  primaryColor      String?             @default("#3B82F6") @map("primary_color")
+  secondaryColor    String?             @default("#1E40AF") @map("secondary_color")
+  backgroundColor   String?             @default("#F9FAFB") @map("background_color")
+  textColor         String?             @default("#1F2937") @map("text_color")
+  themeMode         String?             @default("light") @map("theme_mode")
+  
+  // Contato
+  contactWhatsapp   String?             @map("contact_whatsapp")
+  contactPhone      String?             @map("contact_phone")
+  contactAddress    String?             @map("contact_address")
+  contactCity       String?             @map("contact_city")
+  contactState      String?             @map("contact_state")
+  contactZipcode    String?             @map("contact_zipcode")
+  contactLatitude   Decimal?            @map("contact_latitude") @db.Decimal(10, 8)
+  contactLongitude  Decimal?            @map("contact_longitude") @db.Decimal(11, 8)
+  
+  // Redes Sociais
+  socialInstagram   String?             @map("social_instagram")
+  socialFacebook    String?             @map("social_facebook")
+  socialLinkedin    String?             @map("social_linkedin")
+  
+  // Políticas e Textos Legais
+  termsOfService    String?             @map("terms_of_service")
+  privacyPolicy     String?             @map("privacy_policy")
+  lgpdMessage       String?             @map("lgpd_message")
+  ctaText           String?             @default("Agende agora") @map("cta_text")
+  footerText        String?             @map("footer_text")
   
   // Relacionamentos
   customers         Customer[]
@@ -54,8 +88,36 @@ model Business {
   notificationTemplates NotificationTemplate[]
   notificationLogs  NotificationLog[]
   appointmentCancellations AppointmentCancellation[]
+  users             User[]
+  tenantSettings    TenantSettings?
+  plan              Plan?               @relation(fields: [planId], references: [id])
+  products          Product[]
+  inventoryMovements InventoryMovement[]
+  budgets           Budget[]
+  financialAccounts FinancialAccount[]
+  financialTransactions FinancialTransaction[]
+  aiInsightLogs     AiInsightLog[]
+  whatsappQueue     WhatsAppMessageQueue[]
 
   @@map("businesses")
+}
+
+// Planos (Simples, Profissional, Completo) sem quebrar enum existente
+model Plan {
+  id              String   @id @default(cuid())
+  code            String   @unique // SIMPLES, PROFISSIONAL, COMPLETO
+  name            String
+  description     String?
+  maxUsers        Int?
+  whatsappEnabled Boolean  @default(false)
+  aiEnabled       Boolean  @default(false)
+  monthlyQuoteLimit Int?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  businesses      Business[]
+
+  @@map("plans")
 }
 
 model BusinessSettings {
@@ -110,6 +172,8 @@ model Service {
   category            Category?            @relation(fields: [categoryId], references: [id])
   appointmentServices AppointmentService[]
   packageServices     PackageService[]
+  serviceProducts     ServiceProduct[]
+  budgetItems         BudgetItem[]
 
   @@unique([businessId, name])
   @@map("services")
@@ -155,6 +219,8 @@ model Customer {
   cars                Car[]
   ratings             CustomerRating[]
   notificationLogs    NotificationLog[]
+  budgets             Budget[]
+  whatsappQueue       WhatsAppMessageQueue[]
 
   @@unique([businessId, phone])
   @@unique([businessId, email])
@@ -210,10 +276,14 @@ model Appointment {
   suggestedDatetime     DateTime?            @map("suggested_datetime")
   confirmedByClientAt   DateTime?            @map("confirmed_by_client_at")
   confirmedByBusinessAt DateTime?            @map("confirmed_by_business_at")
+  finalizedAt           DateTime?            @map("finalized_at")
+  inventoryWrittenOff   Boolean              @default(false) @map("inventory_written_off")
   createdAt             DateTime             @default(now()) @map("created_at")
   updatedAt             DateTime             @updatedAt @map("updated_at")
   
   appointmentServices   AppointmentService[]
+  inventoryMovements    InventoryMovement[]
+  financialTransactions FinancialTransaction[]
   cancellation          AppointmentCancellation?
   car                   Car                  @relation(fields: [carId], references: [id])
   customer              Customer             @relation(fields: [customerId], references: [id])
@@ -234,6 +304,251 @@ model AppointmentService {
   service       Service     @relation(fields: [serviceId], references: [id])
 
   @@map("appointment_services")
+}
+
+// Produtos/Estoque
+model Product {
+  id            String   @id @default(cuid())
+  businessId    String   @map("business_id")
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name          String
+  sku           String?  @unique
+  unit          String   @default("un")
+  cost          Decimal  @db.Decimal(10, 2)
+  currentStock  Int      @default(0) @map("current_stock")
+  minStock      Int      @default(0) @map("min_stock")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  movements     InventoryMovement[]
+  serviceProducts ServiceProduct[]
+
+  @@unique([businessId, name])
+  @@map("products")
+}
+
+enum InventoryMovementType {
+  IN
+  ADJUST
+  MANUAL_OUT
+  SERVICE_OUT
+
+  @@map("inventory_movement_type")
+}
+
+model InventoryMovement {
+  id            String   @id @default(cuid())
+  businessId    String   @map("business_id")
+  productId     String   @map("product_id")
+  appointmentId String?  @map("appointment_id")
+  budgetId      String?  @map("budget_id")
+
+  movementType  InventoryMovementType @map("movement_type")
+  quantity      Decimal  @db.Decimal(10, 3)
+  unitCost      Decimal? @db.Decimal(10, 2) @map("unit_cost")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  budget        Budget?  @relation(fields: [budgetId], references: [id])
+
+  @@index([businessId, productId])
+  @@map("inventory_movements")
+}
+
+// Produtos consumidos por serviço
+model ServiceProduct {
+  id         String   @id @default(cuid())
+  serviceId  String   @map("service_id")
+  productId  String   @map("product_id")
+  quantity   Decimal  @db.Decimal(10, 3)
+
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceId, productId])
+  @@map("service_products")
+}
+
+// Orçamentos (propostas)
+enum BudgetStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  CONVERTED
+
+  @@map("budget_status")
+}
+
+model Budget {
+  id            String   @id @default(cuid())
+  businessId    String   @map("business_id")
+  customerId    String   @map("customer_id")
+  status        BudgetStatus @default(DRAFT)
+  total         Decimal  @db.Decimal(10, 2)
+  expiresAt     DateTime? @map("expires_at")
+  notes         String?
+  publicToken   String   @unique @map("public_token")
+  signedAt      DateTime? @map("signed_at")
+  signedByName  String?  @map("signed_by_name")
+  signedByIp    String?  @map("signed_by_ip")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items         BudgetItem[]
+  signatures    BudgetSignature[]
+  inventoryMovements InventoryMovement[]
+  financialTransactions FinancialTransaction[]
+
+  @@index([businessId, status])
+  @@map("budgets")
+}
+
+model BudgetItem {
+  id         String   @id @default(cuid())
+  budgetId   String   @map("budget_id")
+  serviceId  String?  @map("service_id")
+
+  name       String
+  description String?
+  quantity   Decimal  @db.Decimal(10, 3)
+  unitPrice  Decimal  @db.Decimal(10, 2) @map("unit_price")
+  total      Decimal  @db.Decimal(10, 2)
+
+  budget     Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  service    Service? @relation(fields: [serviceId], references: [id])
+
+  @@map("budget_items")
+}
+
+model BudgetSignature {
+  id         String   @id @default(cuid())
+  budgetId   String   @map("budget_id")
+  signerName String   @map("signer_name")
+  signatureData String @map("signature_data")
+  signerIp   String?  @map("signer_ip")
+  signedAt   DateTime @default(now()) @map("signed_at")
+
+  budget     Budget   @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@map("budget_signatures")
+}
+
+// Financeiro
+enum FinancialAccountType {
+  REVENUE
+  EXPENSE
+  ASSET
+  LIABILITY
+  EQUITY
+
+  @@map("financial_account_type")
+}
+
+model FinancialAccount {
+  id          String   @id @default(cuid())
+  businessId  String   @map("business_id")
+  name        String
+  type        FinancialAccountType
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  transactions FinancialTransaction[]
+
+  @@unique([businessId, name])
+  @@map("financial_accounts")
+}
+
+enum FinancialTransactionType {
+  REVENUE
+  EXPENSE
+
+  @@map("financial_transaction_type")
+}
+
+enum FinancialTransactionStatus {
+  PENDING
+  CLEARED
+
+  @@map("financial_transaction_status")
+}
+
+model FinancialTransaction {
+  id            String   @id @default(cuid())
+  businessId    String   @map("business_id")
+  accountId     String   @map("account_id")
+  appointmentId String?  @map("appointment_id")
+  budgetId      String?  @map("budget_id")
+  type          FinancialTransactionType
+  status        FinancialTransactionStatus @default(PENDING)
+  amount        Decimal  @db.Decimal(12, 2)
+  occurredAt    DateTime @default(now()) @map("occurred_at")
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  account       FinancialAccount @relation(fields: [accountId], references: [id])
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id])
+  budget        Budget?    @relation(fields: [budgetId], references: [id])
+
+  @@index([businessId, type])
+  @@map("financial_transactions")
+}
+
+// IA Insights
+model AiInsightLog {
+  id          String   @id @default(cuid())
+  businessId  String   @map("business_id")
+  userId      String?  @map("user_id")
+  prompt      String
+  response    String?
+  latencyMs   Int?     @map("latency_ms")
+  costUsd     Decimal? @db.Decimal(10, 4) @map("cost_usd")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@map("ai_insight_logs")
+}
+
+// Fila de WhatsApp
+enum WhatsAppMessageStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@map("whatsapp_message_status")
+}
+
+model WhatsAppMessageQueue {
+  id          String   @id @default(cuid())
+  businessId  String   @map("business_id")
+  customerId  String?  @map("customer_id")
+  phone       String
+  templateKey String   @map("template_key")
+  payload     Json     @default("{}")
+  status      WhatsAppMessageStatus @default(PENDING)
+  scheduledAt DateTime? @map("scheduled_at")
+  sentAt      DateTime? @map("sent_at")
+  error       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer    Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([businessId, status])
+  @@map("whatsapp_message_queue")
 }
 
 model Settings {
@@ -376,4 +691,54 @@ model NotificationLog {
 
   @@index([businessId, sentAt])
   @@map("notification_logs")
+}
+// ========== USER E CONFIGURAÇÕES MULTI-TENANT ==========
+
+enum UserRole {
+  OWNER
+  STAFF
+  CUSTOMER
+
+  @@map("user_role")
+}
+
+model User {
+  id                String    @id @default(cuid())
+  businessId        String    @map("business_id")
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  email             String
+  password          String
+  fullName          String    @map("full_name")
+  phone             String?
+  role              UserRole  @default(STAFF)
+  isActive          Boolean   @default(true) @map("is_active")
+  
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([businessId, email])
+  @@index([businessId, role])
+  @@index([businessId, isActive])
+  @@map("users")
+}
+
+model TenantSettings {
+  id                String    @id @default(cuid())
+  businessId        String    @unique @map("business_id")
+  business          Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  
+  // Configurações JSON para máxima flexibilidade
+  brandingConfig    Json      @default("{}") @map("branding_config")
+  hoursConfig       Json      @default("{}") @map("hours_config")
+  capacityConfig    Json      @default("{}") @map("capacity_config")
+  cardsConfig       Json      @default("{}") @map("cards_config")
+  contactConfig     Json      @default("{}") @map("contact_config")
+  notificationConfig Json      @default("{}") @map("notification_config")
+  
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([businessId])
+  @@map("tenant_settings")
 }

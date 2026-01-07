@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTenantPath } from '@/lib/tenant-path'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
 import { Loading } from '@/components/ui/Loading'
@@ -57,6 +58,7 @@ const statusVariants: Record<string, 'default' | 'success' | 'warning' | 'danger
 
 export default function CustomerDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const getTenantPath = useTenantPath()
   const [customer, setCustomer] = useState<CustomerDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -91,7 +93,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
     return (
       <div className="space-y-6">
         <Alert type="error" message={error || 'Cliente não encontrado'} />
-        <Button onClick={() => router.push('/clientes')}>Voltar</Button>
+        <Button onClick={() => router.push(getTenantPath('clientes'))}>Voltar</Button>
       </div>
     )
   }
@@ -100,7 +102,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">{customer.name}</h1>
-        <Button variant="secondary" onClick={() => router.push('/clientes')}>
+        <Button variant="secondary" onClick={() => router.push(getTenantPath('clientes'))}>
           Voltar
         </Button>
       </div>

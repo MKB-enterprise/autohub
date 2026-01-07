@@ -91,12 +91,17 @@ export function CarCard({ id, model, plate, color, vehicleType, isSelected = fal
       className={`
         relative p-5 rounded-2xl cursor-pointer transition-all duration-300
         ${isSelected 
-          ? 'bg-gray-800 border-2 border-blue-500 shadow-lg shadow-blue-500/20' 
-          : 'bg-gray-800/60 border border-gray-700/50 hover:border-blue-500/40 hover:shadow-lg hover:shadow-blue-500/10'}
+          ? 'bg-gray-800 border-2' 
+          : 'bg-gray-800/60 border border-gray-700/50'}
       `}
+      style={isSelected ? {
+        borderColor: 'var(--color-primary)',
+        borderWidth: '2px',
+        boxShadow: `0 20px 25px -5px rgba(var(--color-primary-rgb, 59 130 246) / 0.2)`
+      } : {}}
     >
       {isSelected && (
-        <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center shadow-lg">
+        <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: 'var(--color-primary)' }}>
           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
@@ -145,14 +150,19 @@ export function VehicleTypeSelector({ value, onChange }: { value: VehicleType; o
             className={`
               p-3 rounded-xl border-2 transition-all duration-200
               ${isSelected 
-                ? 'bg-blue-500/20 border-blue-500 shadow-lg shadow-blue-500/20' 
+                ? 'bg-gray-800/50' 
                 : 'bg-gray-800/50 border-gray-700 hover:border-gray-500'}
             `}
+            style={isSelected ? {
+              borderColor: 'var(--color-primary)',
+              borderWidth: '2px',
+              boxShadow: `0 20px 25px -5px rgba(var(--color-primary-rgb, 59 130 246) / 0.2)`
+            } : {}}
           >
             <div className="flex justify-center">
               <VehicleIcon size={36} color={isSelected ? '#2563eb' : '#6b7280'} />
             </div>
-            <p className={`text-xs mt-2 font-medium ${isSelected ? 'text-blue-400' : 'text-gray-400'}`}>
+            <p className={`text-xs mt-2 font-medium ${isSelected ? '' : 'text-gray-400'}`} style={isSelected ? { color: 'var(--color-primary)' } : {}}>
               {vehicleTypeLabels[type]}
             </p>
           </button>

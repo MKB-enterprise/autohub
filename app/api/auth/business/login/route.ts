@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import { generateToken } from '@/lib/auth'
+import { getTenantOptional } from '@/lib/tenant-resolver'
 
 // POST /api/auth/business/login - Login de estética
 export async function POST(request: NextRequest) {
@@ -16,9 +17,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Buscar negócio
-    const business = await prisma.business.findUnique({
-      where: { email }
+    // 1. Tentar resolver tenant normalmente
+    let tenant = await getTenantOptional(request)
+
+    // 2. Se não conseguir, buscar o business pelo email para determinar qual é o tenant
+    if (!tenant && email) {
+      const business = await prisma.business.findUnique({
+        where: { email },
+        select: { id: true, name: true, slug: true, email: true, isActive: true }
+      })
+
+      if (business && business.isActive) {
+        tenant = {
+          tenantId: business.id,
+          tenantSlug: business.slug || 'default',
+          business: {
+            id: business.id,
+            name: business.name,
+            slug: business.slug || 'default',
+            email: business.email
+          }
+        }
+      }
+    }
+
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+
+    // Buscar negócio no tenant específico
+    const business = await prisma.business.findFirst({
+      where: { id: tenant.tenantId, email }
     })
 
     if (!business) {
@@ -65,6 +94,17 @@ export async function POST(request: NextRequest) {
     response.cookies.set({
       name: 'auth_token',
       value: token,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/'
+    })
+
+    // Fixar tenant_slug para rotas /api e middleware identificarem o tenant
+    response.cookies.set({
+      name: 'tenant_slug',
+      value: business.slug || tenant.tenantSlug || 'default',
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

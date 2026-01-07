@@ -95,16 +95,18 @@ export function ServiceSelector({
               key={service.id}
               className={`rounded border transition ${
                 checked
-                  ? 'border-blue-600 bg-gray-900/60'
+                  ? 'bg-gray-900/60'
                   : disabled
                   ? 'border-gray-800 bg-gray-900/30 opacity-60'
-                  : 'border-gray-800 bg-gray-900/40 hover:border-blue-500'
-              }`}
+                  : 'border-gray-800 bg-gray-900/40'
+                }`}
+                style={checked ? { borderColor: 'var(--color-primary)', borderWidth: '2px' } : {}}
             >
               <label className="flex items-start gap-3 p-4 cursor-pointer">
                 <input
                   type="checkbox"
-                  className="mt-1 accent-blue-600"
+                  className="mt-1"
+                  style={{ accentColor: 'var(--color-primary)' }}
                   checked={checked}
                   disabled={disabled}
                   onChange={() => toggle(service.id)}
@@ -137,7 +139,7 @@ export function ServiceSelector({
       </div>
 
       {(typeof totalPrice === 'number' || typeof totalDuration === 'number') && (
-        <div className="border border-blue-600 bg-gray-900/40 rounded p-4 text-white">
+        <div className="border bg-gray-900/40 rounded p-4 text-white" style={{ borderColor: 'var(--color-primary)', borderWidth: '2px' }}>
           {typeof totalPrice === 'number' && (
             <p className="text-lg font-semibold">Total: R$ {Number(totalPrice || 0).toFixed(2)}</p>
           )}

@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -11,10 +12,12 @@ import { Alert } from '@/components/ui/Alert'
 import { Modal } from '@/components/ui/Modal'
 import { Textarea } from '@/components/ui/Textarea'
 import { useData } from '@/lib/hooks/useFetch'
+import { getTenantSlugFromUrl, withTenantHeaders } from '@/lib/tenant-client'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import Link from 'next/link'
-import { LottieAnimation } from '@/components/ui/LottieAnimation'
+// Lazy load da animação para não bloquear renderização
+const LottieAnimation = lazy(() => import('@/components/ui/LottieAnimation').then(mod => ({ default: mod.LottieAnimation })))
 import carGarageAnimation from '@/public/animations/Car Garage animation.json'
 
 interface Appointment {
@@ -103,16 +106,18 @@ export default function ClientePage() {
 
   // Carregar configurações de reputação
   useEffect(() => {
-    fetch('/api/settings/reputation')
+    const slug = getTenantSlugFromUrl()
+    fetch('/api/settings/reputation', withTenantHeaders({}, slug))
       .then(res => res.ok ? res.json() : null)
       .then(data => data && setReputationSettings(data))
       .catch(() => {})
   }, [])
 
+  useRequireAuth('customer')
+
+  // Redirecionar admins para a agenda
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login')
-    } else if (user && user.isAdmin) {
+    if (!authLoading && user?.isAdmin) {
       router.push('/agenda')
     }
   }, [user, authLoading, router])
@@ -151,15 +156,19 @@ export default function ClientePage() {
   async function handleAcceptReschedule(appointmentId: string, suggestedDatetime: string) {
     setActionLoading(appointmentId)
     try {
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'CONFIRMED_BY_CLIENT',
-          startDatetime: suggestedDatetime,
-          confirmedByClientAt: new Date().toISOString()
-        })
-      })
+      const slug = getTenantSlugFromUrl()
+      const response = await fetch(
+        `/api/appointments/${appointmentId}`,
+        withTenantHeaders({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            status: 'CONFIRMED_BY_CLIENT',
+            startDatetime: suggestedDatetime,
+            confirmedByClientAt: new Date().toISOString()
+          })
+        }, slug)
+      )
 
       if (!response.ok) {
         throw new Error('Erro ao aceitar reagendamento')
@@ -177,14 +186,18 @@ export default function ClientePage() {
   async function handleCancelAppointment(appointmentId: string, reason: string) {
     setActionLoading(appointmentId)
     try {
-      const response = await fetch(`/api/appointments/${appointmentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: 'CANCELED',
-          notes: reason.trim()
-        })
-      })
+      const slug = getTenantSlugFromUrl()
+      const response = await fetch(
+        `/api/appointments/${appointmentId}`,
+        withTenantHeaders({
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            status: 'CANCELED',
+            notes: reason.trim()
+          })
+        }, slug)
+      )
 
       if (!response.ok) {
         const error = await response.json()
@@ -413,11 +426,13 @@ export default function ClientePage() {
         {filteredAppointments.length === 0 ? (
           <div className="text-center py-12">
             <div className="flex justify-center mb-6">
-              <LottieAnimation 
-                animationData={carGarageAnimation} 
-                className="w-48 h-48"
-                loop={true}
-              />
+              <Suspense fallback={<div className="w-48 h-48" />}>
+                <LottieAnimation 
+                  animationData={carGarageAnimation} 
+                  className="w-48 h-48"
+                  loop={true}
+                />
+              </Suspense>
             </div>
             <p className="text-slate-400 text-lg mb-2">Nenhum agendamento encontrado</p>
             <p className="text-slate-500 text-sm mb-6">Faça seu primeiro agendamento e aproveite nossos serviços!</p>

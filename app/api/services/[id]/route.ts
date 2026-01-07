@@ -12,7 +12,10 @@ export async function GET(
     const service = await prisma.service.findFirst({
       where: { id: params.id },
       include: {
-        category: true
+        category: true,
+        serviceProducts: {
+          include: { product: true }
+        }
       }
     })
 
@@ -41,7 +44,7 @@ export async function PATCH(
   try {
     const admin = await requireAdmin()
     const body = await request.json()
-    const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId } = body
+    const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId, products } = body
 
     if (durationMinutes !== undefined && durationMinutes <= 0) {
       return NextResponse.json(
@@ -76,9 +79,27 @@ export async function PATCH(
         ...(categoryId !== undefined && { categoryId: categoryId || null })
       },
       include: {
-        category: true
+        category: true,
+        serviceProducts: {
+          include: { product: true }
+        }
       }
     })
+
+    if (Array.isArray(products)) {
+      const keepIds = products.filter((p: any) => p.productId).map((p: any) => p.productId)
+      await prisma.serviceProduct.deleteMany({
+        where: { serviceId: service.id, productId: { notIn: keepIds } }
+      })
+      for (const p of products) {
+        if (!p.productId || !p.quantity) continue
+        await prisma.serviceProduct.upsert({
+          where: { serviceId_productId: { serviceId: service.id, productId: p.productId } },
+          update: { quantity: p.quantity },
+          create: { serviceId: service.id, productId: p.productId, quantity: p.quantity },
+        })
+      }
+    }
 
     return NextResponse.json(service)
   } catch (error) {

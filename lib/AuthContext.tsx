@@ -1,7 +1,9 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTenant } from './TenantContext'
+import { withTenant, withTenantHeaders, getTenantSlugFromUrl } from './tenant-client'
 
 interface User {
   id: string
@@ -37,22 +39,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [business, setBusiness] = useState<Business | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const { tenant } = useTenant()
 
-  useEffect(() => {
-    checkAuth()
-  }, [])
-
-  async function checkAuth() {
+  const checkAuth = useCallback(async () => {
+    setLoading(true)
     try {
-      // Tentar verificar login de negócio
-      let response = await fetch('/api/auth/me')
+      if (!tenant?.slug) {
+        setUser(null)
+        setBusiness(null)
+        setLoading(false)
+        return
+      }
+
+      const response = await fetch('/api/auth/me', withTenantHeaders({}, tenant?.slug))
+      
       if (response.ok) {
         const data = await response.json()
+        
         if (data.business) {
           setBusiness(data.business)
+          setUser(null)
         } else if (data.user) {
           setUser(data.user)
+          setBusiness(null)
+        } else {
+          setUser(null)
+          setBusiness(null)
         }
+      } else {
+        setUser(null)
+        setBusiness(null)
       }
     } catch (error) {
       setUser(null)
@@ -60,14 +76,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [tenant?.slug])
+
+  useEffect(() => {
+    if (!tenant?.slug) {
+      setLoading(false)
+      return
+    }
+
+    checkAuth()
+  }, [tenant?.slug, checkAuth])
 
   async function loginCustomer(email: string, password: string, businessId?: string) {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, businessId })
-    })
+    const response = await fetch(
+      '/api/auth/login',
+      withTenantHeaders({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, businessId })
+      }, tenant?.slug)
+    )
 
     if (!response.ok) {
       const data = await response.json()
@@ -75,7 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json()
-    setUser(data.customer)
+    // Verificar autenticação novamente (vai pegar o token do cookie)
+    await checkAuth()
+
+    // Determinar tenant slug para redirecionamento
+    const tenantSlug = tenant?.slug || getTenantSlugFromUrl() || 'default'
 
     try {
       const current = new URL(window.location.href)
@@ -90,24 +122,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (t) qs.set('time', t)
         if (dur) qs.set('duration', dur)
         if (svcs) qs.set('services', svcs)
-        router.push(`${redirect}${qs.toString() ? `?${qs.toString()}` : ''}`)
+        router.push(withTenant(`${redirect}${qs.toString() ? `?${qs.toString()}` : ''}` , tenantSlug))
         return
       }
     } catch {}
 
     if (data.customer.isAdmin) {
-      router.push('/agenda')
+      router.push(withTenant('/agenda', tenantSlug))
     } else {
-      router.push('/cliente')
+      router.push(withTenant('/cliente', tenantSlug))
     }
   }
 
   async function registerCustomer(name: string, email: string, phone: string, password: string, businessId?: string) {
-    const response = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, password, businessId, userType: 'customer' })
-    })
+    const response = await fetch(
+      '/api/auth/register',
+      withTenantHeaders({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, password, businessId, userType: 'customer' })
+      }, tenant?.slug)
+    )
 
     if (!response.ok) {
       const data = await response.json()
@@ -116,15 +151,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json()
     setUser(data.customer)
-    router.push('/cliente')
+    router.push(withTenant('/cliente', tenant?.slug))
   }
 
   async function loginBusiness(email: string, password: string) {
-    const response = await fetch('/api/auth/business/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    })
+    const response = await fetch(
+      '/api/auth/business/login',
+      withTenantHeaders({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      }, tenant?.slug)
+    )
 
     if (!response.ok) {
       const data = await response.json()
@@ -132,16 +170,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json()
+    // Definir business direto da resposta
     setBusiness(data.business)
-    router.push('/dashboard')
+    setUser(null)
+    setLoading(false)
+    
+    // Redirecionar para dashboard
+    const tenantSlug = tenant?.slug || getTenantSlugFromUrl() || 'default'
+    const redirectPath = withTenant('/dashboard', tenantSlug)
+    router.push(redirectPath)
   }
 
   async function registerBusiness(name: string, email: string, phone: string, password: string) {
-    const response = await fetch('/api/auth/business/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, phone, password })
-    })
+    const response = await fetch(
+      '/api/auth/business/register',
+      withTenantHeaders({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, password })
+      }, tenant?.slug)
+    )
 
     if (!response.ok) {
       const data = await response.json()
@@ -150,22 +198,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json()
     setBusiness(data.business)
-    router.push('/dashboard')
+    router.push(withTenant('/dashboard', tenant?.slug))
   }
 
   async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    await fetch('/api/auth/logout', withTenantHeaders({ method: 'POST' }, tenant?.slug))
     setUser(null)
     setBusiness(null)
-    router.push('/login')
+    router.push(withTenant('/login', tenant?.slug))
   }
 
   async function loginWithPhone(phone: string, code: string, name?: string, businessId?: string) {
-    const response = await fetch('/api/auth/verify-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone, code, name, businessId })
-    })
+    const response = await fetch(
+      '/api/auth/verify-code',
+      withTenantHeaders({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, code, name, businessId })
+      }, tenant?.slug)
+    )
 
     if (!response.ok) {
       const data = await response.json()
@@ -189,15 +240,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (svcs) qs.set('services', svcs)
 
       if (redirect) {
-        router.push(`${redirect}${qs.toString() ? `?${qs.toString()}` : ''}`)
+        router.push(withTenant(`${redirect}${qs.toString() ? `?${qs.toString()}` : ''}`, tenant?.slug))
         return
       }
     } catch {}
 
     if (data.customer.isAdmin) {
-      router.push('/agenda')
+      router.push(withTenant('/agenda', tenant?.slug))
     } else {
-      router.push('/cliente')
+      router.push(withTenant('/cliente', tenant?.slug))
     }
   }
 
