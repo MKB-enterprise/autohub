@@ -15,6 +15,9 @@ const adminMenuItems = [
   { href: 'carros', label: 'Carros', icon: '🚗' },
   { href: 'servicos', label: 'Serviços', icon: '🔧' },
   { href: 'categorias', label: 'Categorias', icon: '🏷️' },
+  { href: 'produtos', label: 'Produtos', icon: '📦' },
+  { href: 'estoque/diluicao', label: 'Diluição', icon: '🧪' },
+  { href: 'estoque/movimentacoes', label: 'Movimentações', icon: '📊' },
   { href: 'configuracoes', label: 'Configurações', icon: '⚙️' },
 ]
 

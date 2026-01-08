@@ -56,10 +56,11 @@ export default function TenantSettingsPage() {
           const resp = await fetch('/api/tenant/settings', withTenantHeaders({}))
           if (resp.ok) {
             const full = await resp.json()
+            const branding = full?.branding || {}
             setBrandingData({
-              displayName: full.branding.displayName,
-              theme: full.branding.theme,
-              footerText: full.branding.footerText || undefined
+              displayName: branding.displayName,
+              theme: branding.theme,
+              footerText: branding.footerText || undefined
             })
             setHoursData({
               timezone: full.hours.timezone,
@@ -104,10 +105,11 @@ export default function TenantSettingsPage() {
 
       // Caso settings já tenha tudo, inicializar diretamente
       if (settings) {
+        const branding = settings.branding || {}
         setBrandingData({
-          displayName: settings.branding.displayName,
-          theme: settings.branding.theme,
-          footerText: settings.branding.footerText || undefined
+          displayName: branding.displayName,
+          theme: branding.theme,
+          footerText: branding.footerText || undefined
         })
         setHoursData({
           timezone: settings.hours!.timezone,
@@ -201,10 +203,11 @@ export default function TenantSettingsPage() {
           const full = await resp.json()
           // Atualizar dados conforme seção salva para refletir valores mais recentes
           if (section === 'branding') {
+            const branding = full?.branding || {}
             setBrandingData({
-              displayName: full.branding.displayName,
-              theme: full.branding.theme,
-              footerText: full.branding.footerText || undefined
+              displayName: branding.displayName,
+              theme: branding.theme,
+              footerText: branding.footerText || undefined
             })
           } else if (section === 'hours') {
             setHoursData({
