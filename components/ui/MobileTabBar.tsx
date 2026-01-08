@@ -1,13 +1,15 @@
 "use client"
 
+import { memo } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/AuthContext'
 
-function Tab({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
+const Tab = memo(function Tab({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
   return (
     <Link
       href={href}
+      prefetch={false}
       className={
         `flex flex-col items-center justify-center gap-1 flex-1 py-2 text-xs transition-colors ${
           active ? 'text-white' : 'text-gray-400 hover:text-gray-200'
@@ -19,9 +21,9 @@ function Tab({ href, label, icon, active }: { href: string; label: string; icon:
       <span className="truncate max-w-[80px]">{label}</span>
     </Link>
   )
-}
+})
 
-export default function MobileTabBar() {
+const MobileTabBar = memo(function MobileTabBar() {
   const pathname = usePathname()
   const { user } = useAuth()
 
@@ -56,4 +58,6 @@ export default function MobileTabBar() {
       </div>
     </div>
   )
-}
+})
+
+export default MobileTabBar

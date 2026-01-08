@@ -1,10 +1,12 @@
 'use client'
 
 import useSWR, { SWRConfiguration } from 'swr'
+import { getTenantSlugFromUrl, withTenantHeaders } from '@/lib/tenant-client'
 
-// Fetcher padrão
+// Fetcher padrão com cabeçalho de tenant defensivo
 const fetcher = async (url: string) => {
-  const res = await fetch(url)
+  const slug = getTenantSlugFromUrl()
+  const res = await fetch(url, withTenantHeaders({}, slug))
   if (!res.ok) {
     const error = new Error('Erro ao carregar dados')
     throw error
@@ -16,9 +18,14 @@ const fetcher = async (url: string) => {
 export const swrConfig: SWRConfiguration = {
   fetcher,
   revalidateOnFocus: false, // Não revalidar quando voltar à aba
+  revalidateOnReconnect: false, // Não revalidar ao reconectar
   revalidateIfStale: true,
   dedupingInterval: 5000, // Deduplicar requests em 5s
   keepPreviousData: true, // Manter dados anteriores enquanto carrega novos
+  errorRetryCount: 2, // Tentar apenas 2 vezes em caso de erro
+  errorRetryInterval: 3000, // Esperar 3s entre tentativas
+  shouldRetryOnError: true,
+  focusThrottleInterval: 10000, // Throttle de revalidação ao focar (10s)
 }
 
 // Hook genérico para fetch com cache

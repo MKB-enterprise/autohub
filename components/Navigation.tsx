@@ -4,13 +4,16 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/AuthContext'
 import { Button } from './ui/Button'
 import { usePathname } from 'next/navigation'
+import { useTenant } from '@/lib/TenantContext'
+import { withTenant } from '@/lib/tenant-client'
 
 export default function Navigation() {
   const { user, loading, logout } = useAuth()
+  const { tenant } = useTenant()
   const pathname = usePathname()
 
   // Não mostrar nav em páginas públicas
-  if (pathname === '/login' || pathname === '/register') {
+  if (pathname.includes('/login') || pathname.includes('/register')) {
     return null
   }
 
@@ -38,10 +41,10 @@ export default function Navigation() {
             DETAILING PRO
           </Link>
           <div className="flex gap-4">
-            <Link href="/login" className="px-4 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+            <Link href={withTenant('/login', tenant?.slug)} className="px-4 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
               Login
             </Link>
-            <Link href="/register" className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all font-semibold">
+            <Link href={withTenant('/register', tenant?.slug)} className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all font-semibold">
               Criar Conta
             </Link>
           </div>
@@ -73,38 +76,38 @@ export default function Navigation() {
           {user.isAdmin ? (
             // Menu Admin
             <>
-              <Link href="/agenda" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/agenda" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 📅 Agenda
               </Link>
-              <Link href="/agendamentos/novo" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/agendamentos/novo" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 ➕ Novo
               </Link>
-              <Link href="/agendamentos" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/agendamentos" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 📜 Histórico
               </Link>
-              <Link href="/clientes" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/clientes" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 👥 Clientes
               </Link>
-              <Link href="/servicos" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/servicos" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 🛠️ Serviços
               </Link>
-              <Link href="/categorias" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/categorias" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 🏷️ Categorias
               </Link>
-              <Link href="/configuracoes" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/configuracoes" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 ⚙️ Config
               </Link>
             </>
           ) : (
             // Menu Cliente
             <>
-              <Link href="/cliente" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/cliente" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 📋 Meus Agendamentos
               </Link>
-              <Link href="/cliente/novo" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/cliente/novo" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 ➕ Novo Agendamento
               </Link>
-              <Link href="/cliente/perfil" className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
+              <Link href="/cliente/perfil" prefetch={false} className="px-3 py-2 rounded-lg hover:bg-cyan-500/10 transition-all border border-transparent hover:border-cyan-500/30">
                 👤 Meu Perfil
               </Link>
             </>

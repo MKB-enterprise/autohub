@@ -3,6 +3,8 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { NotificationTemplateType } from '@prisma/client'
 
+export const dynamic = 'force-dynamic'
+
 // GET /api/settings/notifications - Listar templates de notificação
 export async function GET(request: NextRequest) {
   try {

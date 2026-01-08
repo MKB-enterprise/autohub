@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/AuthContext'
+import { useTenant } from '@/lib/TenantContext'
+import { withTenant } from '@/lib/tenant-client'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -44,6 +48,10 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
+  const { user, business, loading: authLoading } = useAuth()
+  const { tenant } = useTenant()
+  
   // SWR para cache e revalidação automática
   const { data: stats, isLoading: loadingStats } = useData<DashboardStats>('/api/dashboard/stats')
   const { data: appointmentsData, isLoading: loadingAppointments, mutate: refreshAppointments } = useData<RecentAppointment[]>('/api/appointments?limit=5')
@@ -52,6 +60,23 @@ export default function DashboardPage() {
   const [hideValues, setHideValues] = useState(false)
   const [rescheduleModal, setRescheduleModal] = useState<string | null>(null)
   const [rescheduleReason, setRescheduleReason] = useState('')
+  
+  // Redirecionar para login correto se não autenticado
+  useEffect(() => {
+    if (authLoading) return
+    
+    // Se logado como business, OK
+    if (business) {
+      return
+    }
+    
+    // Se não autenticado ou é cliente, redirecionar para login de business
+    if (!user || !business) {
+      router.push(withTenant('/login/business', tenant?.slug))
+    }
+  }, [user, business, authLoading, router, tenant?.slug])
+  
+  // Mostra loading apenas para dados, não para auth
   const loading = loadingStats || loadingAppointments
 
   // Auto-check status changes a cada minuto

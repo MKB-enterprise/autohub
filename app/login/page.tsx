@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { Card } from '@/components/ui/Card'
 import { Input } from '@/components/ui/Input'
@@ -10,17 +10,29 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import Image from 'next/image'
+import { useTenant } from '@/lib/TenantContext'
+import { withTenant, withTenantHeaders } from '@/lib/tenant-client'
 
-type LoginMethod = 'email' | 'phone' | 'google'
+type LoginMethod = 'phone' | 'google'
 
 export default function LoginPage() {
-  const { loginCustomer, loginWithPhone, loginWithGoogle } = useAuth()
+  const { loginWithPhone, loginWithGoogle, user, business, loading: authLoading } = useAuth()
   const router = useRouter()
+  const { tenant } = useTenant()
+
+  // Se já está logado, redirecionar para dashboard correto
+  useEffect(() => {
+    if (!authLoading) {
+      if (business) {
+        // Business logado -> redirecionar para dashboard empresarial
+        router.push(withTenant('/dashboard', tenant?.slug))
+      } else if (user) {
+        // Cliente logado -> redirecionar para cliente
+        router.push(withTenant('/cliente', tenant?.slug))
+      }
+    }
+  }, [user, business, authLoading, router, tenant?.slug])
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone')
-  
-  // Email/Password
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   
   // Phone
   const [phone, setPhone] = useState('')
@@ -41,20 +53,16 @@ export default function LoginPage() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
   }
 
-    const { execute: emailLogin, isLoading: emailLoading } = useAsyncAction(
-      async () => {
-      await loginCustomer(email, password)
-      },
-      { onError: (err) => setError(err.message) }
-    )
-
     const { execute: sendCode, isLoading: sendingCode } = useAsyncAction(
       async () => {
-      const response = await fetch('/api/auth/send-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone })
-      })
+      const response = await fetch(
+        '/api/auth/send-code',
+        withTenantHeaders({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        }, tenant?.slug)
+      )
 
       const data = await response.json()
 
@@ -90,19 +98,34 @@ export default function LoginPage() {
     { onError: (err) => setError(err.message) }
   )
 
+  // Se está carregando, mostrar loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gray-950">
+        <div className="w-full max-w-md">
+          <Card>
+            <div className="text-center">
+              <p className="text-gray-400">Carregando...</p>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gray-950">
       <div className="w-full max-w-md">
         <Card>
           <div className="text-center mb-6 md:mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-white">Login</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-white">Login de Cliente</h1>
             <p className="text-gray-400 mt-2 text-sm">Acesse sua conta</p>
           </div>
 
           {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
           {/* Login Method Selector - responsive */}
-          <div className="grid grid-cols-3 gap-2 md:gap-3 mb-6">
+          <div className="grid grid-cols-2 gap-2 md:gap-3 mb-6">
             <button
               onClick={() => setLoginMethod('phone')}
               className={`py-2.5 md:py-3 px-2 md:px-4 rounded-lg font-medium text-xs md:text-sm transition-colors border ${
@@ -122,16 +145,6 @@ export default function LoginPage() {
               }`}
             >
               🔐 Google
-            </button>
-            <button
-              onClick={() => setLoginMethod('email')}
-              className={`py-2.5 md:py-3 px-2 md:px-4 rounded-lg font-medium text-xs md:text-sm transition-colors border ${
-                loginMethod === 'email'
-                  ? 'border-blue-500 text-blue-200'
-                  : 'border-gray-700 text-gray-400 hover:text-gray-200'
-              }`}
-            >
-              ✉️ Email
             </button>
           </div>
 
@@ -218,36 +231,17 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Email/Password Login */}
-          {loginMethod === 'email' && (
-            <form onSubmit={(e) => { e.preventDefault(); emailLogin(); }} className="space-y-4">
-              <Input
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="seu@email.com"
-              />
-              <Input
-                label="Senha"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••"
-              />
-                <Button type="submit" className="w-full" disabled={emailLoading}>
-                  {emailLoading ? '🔄 Entrando...' : '🚀 Entrar'}
-              </Button>
-            </form>
-          )}
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-400">
-              Primeira vez aqui?{' '}
-              <Link href="/" className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
-                Ver horários disponíveis →
+          <div className="mt-6 text-center border-t border-gray-700 pt-6">
+            <p className="text-sm text-gray-400 mb-4">
+              Acesso de negócio?{' '}
+              <Link href={withTenant('/login/business', tenant?.slug)} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                Entrar como negócio →
+              </Link>
+            </p>
+            <p className="text-xs text-gray-500">
+              Primeira vez?{' '}
+              <Link href={withTenant('/', tenant?.slug)} className="text-blue-400 hover:text-blue-300 font-semibold transition-colors">
+                Fazer login depois →
               </Link>
             </p>
           </div>

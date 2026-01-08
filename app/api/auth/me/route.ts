@@ -8,22 +8,39 @@ export async function GET() {
     const user = await getCurrentUser()
     
     if (!user) {
-      return NextResponse.json({ user: null })
+      return NextResponse.json({ user: null, business: null })
     }
 
-    const customer = await prisma.customer.findUnique({
-      where: { id: user.customerId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        isAdmin: true
-      }
-    })
+    // Se tem businessId, é login de negócio
+    if (user.businessId) {
+      const business = await prisma.business.findUnique({
+        where: { id: user.businessId },
+        select: {
+          id: true,
+          name: true,
+          email: true
+        }
+      })
+      return NextResponse.json({ business, user: null })
+    }
 
-    return NextResponse.json({ user: customer })
+    // Se tem customerId, é login de cliente
+    if (user.customerId) {
+      const customer = await prisma.customer.findUnique({
+        where: { id: user.customerId },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          isAdmin: true
+        }
+      })
+      return NextResponse.json({ user: customer, business: null })
+    }
+
+    return NextResponse.json({ user: null, business: null })
   } catch (error) {
-    return NextResponse.json({ user: null })
-  }
+    console.error('[AUTH ME] Erro:', error)
+    return NextResponse.json({ user: null, business: null })  }
 }

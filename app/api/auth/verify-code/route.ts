@@ -2,10 +2,37 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { generateToken } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { getTenantOptional, resolveTenantBySlug } from '@/lib/tenant-resolver'
 
 export async function POST(request: NextRequest) {
   try {
     const { phone, code, name } = await request.json()
+
+    let tenant = await getTenantOptional(request)
+    if (!tenant) {
+      // Fallback: buscar a empresa padrão (primeira empresa ativa)
+      const defaultBusiness = await prisma.business.findFirst({
+        where: { isActive: true },
+        select: { id: true, name: true, slug: true, email: true }
+      })
+
+      if (defaultBusiness) {
+        tenant = {
+          tenantId: defaultBusiness.id,
+          tenantSlug: defaultBusiness.slug || 'default',
+          business: {
+            id: defaultBusiness.id,
+            name: defaultBusiness.name,
+            slug: defaultBusiness.slug || 'default',
+            email: defaultBusiness.email
+          }
+        }
+      }
+    }
+
+    if (!tenant) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
 
     if (!phone || !code) {
       return NextResponse.json({ error: 'Telefone e código são obrigatórios' }, { status: 400 })
@@ -17,16 +44,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 })
     }
 
-    const business = await prisma.business.findFirst()
+    const business = await prisma.business.findUnique({ where: { id: tenant.tenantId } })
+    if (!business) {
+      return NextResponse.json({ error: 'Negócio não encontrado para este tenant' }, { status: 400 })
+    }
 
-    const customer = business
-      ? await prisma.customer.findUnique({
-          where: { businessId_phone: { businessId: business.id, phone: normalizedPhone } },
-        })
-      : await prisma.customer.findFirst({
-          // fallback only se não houver business (ambiente antigo)
-          where: { phone: normalizedPhone as any },
-        })
+    const customer = await prisma.customer.findUnique({
+      where: { businessId_phone: { businessId: tenant.tenantId, phone: normalizedPhone } },
+    })
 
     if (!customer) {
       return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
@@ -55,9 +80,7 @@ export async function POST(request: NextRequest) {
 
     // Atualizar cliente
     const updatedCustomer = await prisma.customer.update({
-      where: business
-        ? { businessId_phone: { businessId: business.id, phone: normalizedPhone } }
-        : ({ phone: normalizedPhone } as any),
+      where: { businessId_phone: { businessId: tenant.tenantId, phone: normalizedPhone } },
       data: {
         phoneVerified: true,
         verificationCode: null,
@@ -73,18 +96,32 @@ export async function POST(request: NextRequest) {
     // Gerar token JWT
     const token = generateToken({
       customerId: updatedCustomer.id,
-      businessId: (updatedCustomer as any).businessId,
+      businessId: tenant.tenantId,
       email: updatedCustomer.email || updatedCustomer.phone,
       isAdmin: updatedCustomer.isAdmin
     })
 
     // Definir cookie
     const cookieStore = await cookies()
+    const secure = process.env.NODE_ENV === 'production'
+    const tenantCookieDomain = process.env.TENANT_COOKIE_DOMAIN || undefined
+
     cookieStore.set('auth_token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure,
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7 // 7 dias
+      maxAge: 60 * 60 * 24 * 7, // 7 dias
+      path: '/'
+    })
+
+    // Fixar tenant_slug para que próximos requests /api já carreguem o contexto
+    cookieStore.set('tenant_slug', tenant.tenantSlug, {
+      httpOnly: true,
+      secure,
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7,
+      path: '/',
+      domain: tenantCookieDomain
     })
 
     return NextResponse.json({

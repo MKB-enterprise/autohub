@@ -5,15 +5,109 @@
 :root {
   --safe-bottom: env(safe-area-inset-bottom);
   --safe-top: env(safe-area-inset-top);
+  --color-primary: #3B82F6;
+  --color-secondary: #1E40AF;
+  --color-background: #F9FAFB;
+  --color-text: #1F2937;
 }
 
 html, body {
   height: 100%;
 }
 
+/* Tema claro (padrão) */
 body {
-  background-color: #0b1020; /* fallback for when Tailwind classes are not yet applied */
-  -webkit-tap-highlight-color: transparent;
+  background-color: white;
+  color: #1f2937;
+}
+
+input, textarea, select {
+  background-color: white;
+  border-color: #e2e8f0;
+  color: #1f2937;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9ca3af;
+}
+
+a {
+  color: #2563eb;
+}
+
+a:hover {
+  color: #1d4ed8;
+}
+
+/* Tema escuro */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark body {
+  background-color: #0f172a;
+  color: #f1f5f9;
+}
+
+html.dark input, 
+html.dark textarea, 
+html.dark select {
+  background-color: #1e293b;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+html.dark input::placeholder, 
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+
+html.dark a {
+  color: #60a5fa;
+}
+
+html.dark a:hover {
+  color: #93c5fd;
+}
+
+html.dark h1, html.dark h2, html.dark h3, html.dark h4, html.dark h5, html.dark h6 {
+  color: #f1f5f9;
+}
+
+html.dark .bg-gray-950 {
+  background-color: #030712;
+}
+
+html.dark .border-gray-800 {
+  border-color: #1f2937;
+}
+
+html.dark .text-gray-100 {
+  color: #f3f4f6;
+}
+
+html.dark .text-gray-600 {
+  color: #4b5563;
+}
+
+html.dark .bg-gray-900 {
+  background-color: #111827;
+}
+
+html.dark .bg-gray-800 {
+  background-color: #1f2937;
+}
+
+html.dark .bg-gray-700 {
+  background-color: #374151;
+}
+
+html.dark .text-gray-400 {
+  color: #9ca3af;
+}
+
+html.dark .text-gray-500 {
+  color: #6b7280;
 }
 
 .safe-pb {
@@ -22,4 +116,26 @@ body {
 
 .safe-pt {
   padding-top: max(var(--safe-top), 0px);
+}
+
+/* Aplicar cores do tenant em componentes principais */
+:root {
+  --accent-color: var(--color-primary);
+  --accent-dark: var(--color-secondary);
+
+/* Dynamic focus styles for inputs */
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb, 59 130 246) / 0.1);
+}
+
+/* Links with dynamic color */
+a {
+  color: var(--color-primary);
+}
+
+a:hover {
+  opacity: 0.8;
+}
 }

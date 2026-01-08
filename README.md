@@ -88,6 +88,8 @@ DATABASE_URL="postgresql://usuario:senha@localhost:5432/pit_stop"
 JWT_SECRET="sua-chave-secreta-super-segura-aqui"
 ```
 
+> Dica: rode `npx prisma db seed` para popular planos (ex.: SIMPLES/PROFISSIONAL/COMPLETO) usados nos testes e nas limitações de produto/IA/WhatsApp.
+
 ### 3. Configurar o banco de dados
 
 ```bash
@@ -108,6 +110,25 @@ npm run dev
 ```
 
 Acesse: `http://localhost:3000`
+
+### 5. Testes e checagens
+
+```bash
+# Hardening multi-tenant
+npm run test:tenant
+
+# Limite de usuários por plano
+npm run test:plan
+
+# Baixa de estoque em finalização de serviço
+npm run test:inventory
+
+# Assinatura e aprovação de orçamento
+npm run test:budget
+
+# Integração completa: agendamento -> baixa de estoque -> financeiro
+npm run test:integration
+```
 
 ### Credenciais padrão (seed)
 
@@ -455,6 +476,14 @@ DATABASE_URL="postgresql://postgres:[PASSWORD]@[HOST]:[PORT]/railway"
 
 ```bash
 npx prisma migrate deploy
+
+### Multi-tenant (dev vs prod)
+
+- Dev: suporte a `/t/{slug}` com fallback automático para `default` se nenhum slug for encontrado.
+- Prod: sem fallback; se não houver slug válido (path/subdomínio/cookie), retorna 404.
+- Cookie `tenant_slug`: SameSite=Lax, Secure em produção, HttpOnly, domain configurável via `TENANT_COOKIE_DOMAIN`; usado apenas no servidor para resolução.
+- Rewrites: `/t/{slug}/api/*` e `/t/{slug}/*` reescrevem removendo o prefixo e injetando `x-tenant-slug`.
+- Ordem de resolução: header (apenas dev) → path → subdomínio → cookie → fallback dev.
 ```
 
 ---

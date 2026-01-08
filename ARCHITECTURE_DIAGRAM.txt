@@ -1,0 +1,262 @@
+```
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                     ARQUITETURA MULTI-TENANT SAAS                             ║
+║                              AutoHub v1.0                                      ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            CAMADA DE ENTRADA                                │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  empresa-a.autohub.com  →  X-Tenant-Slug: empresa-a  →  /t/empresa-a     │
+│         ↓                          ↓                          ↓            │
+│  ┌──────────────────────────────────────────────────────────────┐          │
+│  │          MIDDLEWARE NEXT.JS (middleware.ts)                  │          │
+│  │  • Resolve tenant (subdomínio/header/path)                  │          │
+│  │  • Valida Business (ativo, subscriptionValid)               │          │
+│  │  • Injeta x-tenant-id, x-tenant-slug nos headers            │          │
+│  │  • Cache local (5 min)                                       │          │
+│  └──────────────────────────────────────────────────────────────┘          │
+│                             ↓                                              │
+│  ┌──────────────────────────────────────────────────────────────┐          │
+│  │  Tenant Resolver (lib/tenant-resolver.ts)                    │          │
+│  │  • getTenantFromUrl() - Extrai slug                         │          │
+│  │  • resolveTenantBySlug() - Busca Business                   │          │
+│  │  • Cache com TTL                                            │          │
+│  └──────────────────────────────────────────────────────────────┘          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CAMADA DE AUTENTICAÇÃO                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────┐             │
+│  │  Auth Multi-Tenant (lib/auth-multi-tenant.ts)              │             │
+│  │                                                             │             │
+│  │  Token JWT:                                                 │             │
+│  │  {                                                          │             │
+│  │    userId: "user-id"                                        │             │
+│  │    businessId: "business-id"  ← TENANT ID                  │             │
+│  │    tenantId: "business-id"                                  │             │
+│  │    email: "admin@empresa.com"                               │             │
+│  │    role: "OWNER" | "STAFF" | "CUSTOMER"                     │             │
+│  │    fullName: "Admin"                                        │             │
+│  │  }                                                          │             │
+│  │                                                             │             │
+│  │  Guards:                                                    │             │
+│  │  • requireOwner() - Apenas OWNER                           │             │
+│  │  • requireStaffOrOwner() - OWNER ou STAFF                  │             │
+│  │  • authenticateRequest() - Valida token + tenant           │             │
+│  └────────────────────────────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          CAMADA DE API / ENDPOINTS                          │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌────────────────────────────────────┐  ┌─────────────────────────────┐  │
+│  │  Public Endpoints (sem tenant)     │  │  Protected Endpoints         │  │
+│  ├────────────────────────────────────┤  ├─────────────────────────────┤  │
+│  │ POST /api/auth/business/register   │  │ GET  /api/tenant/settings   │  │
+│  │ POST /api/auth/business/login      │  │ PUT  /api/tenant/settings   │  │
+│  │ POST /api/auth/register            │  │                              │  │
+│  │ POST /api/auth/login               │  │ GET  /api/services          │  │
+│  │                                    │  │ POST /api/services          │  │
+│  └────────────────────────────────────┘  │ GET  /api/customers         │  │
+│                                          │ POST /api/appointments      │  │
+│  Cada endpoint protegido:                │ ...                         │  │
+│  1. Verifica token                       └─────────────────────────────┘  │
+│  2. Valida tenantId do token                                              │
+│  3. Filtra dados por businessId                                           │
+│  4. Retorna apenas dados do tenant                                        │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        CAMADA DE CONFIGURAÇÕES                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  TenantSettings (lib/tenant-settings.ts)                                   │
+│  ┌──────────────────────────────────────────────────────────┐              │
+│  │                                                           │              │
+│  │  BrandingConfig                 HoursConfig              │              │
+│  │  • displayName                  • timezone               │              │
+│  │  • logo, favicon                • openingHours (JSON)    │              │
+│  │  • colors (primary, secondary)  • slotDurationMinutes    │              │
+│  │  • theme (light/dark)           • policies               │              │
+│  │  • cta, footerText              • breaks, holidays       │              │
+│  │                                                           │              │
+│  │  CapacityConfig                 CardsConfig              │              │
+│  │  • capacityPerSlot              • cards[] (JSON)         │              │
+│  │  • enableOverbooking            • título, subtítulo      │              │
+│  │  • maxBookingsPerDay            • ícone, link, order     │              │
+│  │                                 • visibleTo (roles)      │              │
+│  │  ContactConfig                  NotificationConfig       │              │
+│  │  • whatsapp, phone              • enabled, channel       │              │
+│  │  • address (JSON)               • reminderHours          │              │
+│  │  • location (lat/long)          • templates              │              │
+│  │  • social (insta, fb, linkedin) • lgpdConsent            │              │
+│  │                                                           │              │
+│  └──────────────────────────────────────────────────────────┘              │
+│                                                                             │
+│  Cada campo de config é validado com schema TypeScript                    │
+│  Armazenado em JSON no banco para máxima flexibilidade                    │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CAMADA DE BANCO DE DADOS                               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐       │
+│  │   Business      │    │      User       │    │ TenantSettings   │       │
+│  ├─────────────────┤    ├─────────────────┤    ├──────────────────┤       │
+│  │ id (PK)         │    │ id (PK)         │    │ id (PK)          │       │
+│  │ slug (UNIQUE)   │    │ businessId (FK) │    │ businessId (FK)  │       │
+│  │ name            │    │ email           │    │ brandingConfig   │       │
+│  │ email (UNIQUE)  │    │ password        │    │ hoursConfig      │       │
+│  │ ... auth fields │    │ fullName        │    │ capacityConfig   │       │
+│  │ ... branding    │    │ role (ENUM)     │    │ cardsConfig      │       │
+│  │ ... contact     │    │ isActive        │    │ contactConfig    │       │
+│  │ ... social      │    │ @@unique(bid,   │    │ notificationCfg  │       │
+│  │ ... terms       │    │   email)        │    │                  │       │
+│  └─────────────────┘    └─────────────────┘    └──────────────────┘       │
+│         ↓                        ↓                       ↓                  │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────────┐       │
+│  │   Customer      │    │   Service       │    │  Appointment     │       │
+│  ├─────────────────┤    ├─────────────────┤    ├──────────────────┤       │
+│  │ businessId (FK) │    │ businessId (FK) │    │ businessId (FK)  │       │
+│  │ @@unique(bid,   │    │ @@unique(bid,   │    │ @@unique(bid,    │       │
+│  │   phone/email)  │    │   name)         │    │   id)            │       │
+│  │ ...             │    │ ...             │    │ @@index(bid,dt)  │       │
+│  └─────────────────┘    └─────────────────┘    └──────────────────┘       │
+│                                                                             │
+│  GARANTIAS DE ISOLAMENTO:                                                  │
+│  ✅ Índice (businessId, id) em todas as tabelas                            │
+│  ✅ Constraints unique([businessId, email]) etc                            │
+│  ✅ Foreign keys com CASCADE delete                                        │
+│  ✅ Queries SEMPRE filtram por businessId                                  │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                      CAMADA DE FRONTEND (React)                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  TenantProvider (lib/TenantContext.tsx)                                    │
+│  ┌──────────────────────────────────────────────────────────┐              │
+│  │                                                           │              │
+│  │  Carrega no mount:                                        │              │
+│  │  1. Resolve tenant do URL                                │              │
+│  │  2. Busca GET /api/tenant/settings                       │              │
+│  │  3. Aplica CSS vars para cores                           │              │
+│  │  4. Injeta TenantContext nos children                    │              │
+│  │                                                           │              │
+│  │  Hooks disponíveis:                                       │              │
+│  │  • useTenant() - Acessa tenant + settings                │              │
+│  │  • useBranding() - Apenas branding                       │              │
+│  │  • useHours() - Apenas horários                          │              │
+│  │  • useCapacity() - Apenas capacidade                     │              │
+│  │  • useContact() - Apenas contato                         │              │
+│  │                                                           │              │
+│  └──────────────────────────────────────────────────────────┘              │
+│                             ↓                                              │
+│  ┌──────────────────────────────────────────────────────────┐              │
+│  │           PAINEL DE CONFIGURAÇÕES (/configuracoes)       │              │
+│  ├──────────────────────────────────────────────────────────┤              │
+│  │                                                           │              │
+│  │  Abas:                                                    │              │
+│  │  • Branding - Cores, tema, CTA, footer                  │              │
+│  │  • Horários - Timezone, slots, políticas                │              │
+│  │  • Capacidade - Vagas, overbooking                       │              │
+│  │  • Cards - Dashboard customizável                        │              │
+│  │  • Contato - Whatsapp, telefone, endereço              │              │
+│  │  • Notificações - Templates (em dev)                     │              │
+│  │                                                           │              │
+│  │  Cada seção:                                              │              │
+│  │  1. Form com inputs                                      │              │
+│  │  2. Botão Save → PUT /api/tenant/settings               │              │
+│  │  3. Feedback visual (loading, success, error)            │              │
+│  │  4. Refresh de settings em tempo real                    │              │
+│  │                                                           │              │
+│  └──────────────────────────────────────────────────────────┘              │
+│                             ↓                                              │
+│  ┌──────────────────────────────────────────────────────────┐              │
+│  │       BRANDING DINÂMICO EM TODAS AS PÁGINAS             │              │
+│  ├──────────────────────────────────────────────────────────┤              │
+│  │                                                           │              │
+│  │  • Header - Cores do tenant, logo, nome                 │              │
+│  │  • Botões - Cores primary/secondary                      │              │
+│  │  • Tema - Light/dark aplicado globalmente                │              │
+│  │  • Textos - CTA "Agende agora" ou customizado            │              │
+│  │  • Footer - Logo, sociais, endereço                      │              │
+│  │                                                           │              │
+│  └──────────────────────────────────────────────────────────┘              │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        FLUXO DE REQUEST COMPLETO                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                             │
+│  1. Cliente acessa: empresa.autohub.com/agenda                             │
+│     ↓                                                                       │
+│  2. Middleware intercepta                                                   │
+│     • Extrai "empresa" do hostname                                          │
+│     • Busca Business com slug="empresa"                                     │
+│     • Injeta x-tenant-id="biz-123", x-tenant-slug="empresa"                │
+│     ↓                                                                       │
+│  3. Page /agenda carrega                                                    │
+│     • AuthProvider verifica token                                           │
+│     • TenantProvider carrega settings                                       │
+│     • Aplica branding (cores, tema, logo)                                  │
+│     ↓                                                                       │
+│  4. User interage                                                           │
+│     • Clica "Agende Agora" (CTA do tenant)                                 │
+│     • Abre modal de agendamento                                             │
+│     ↓                                                                       │
+│  5. Fetch de dados                                                          │
+│     • GET /api/appointments?date=2025-01-15                                │
+│     • Middleware injeta x-tenant-id                                         │
+│     • Handler valida token + tenantId                                       │
+│     • Query: WHERE businessId = "biz-123" AND date = ...                   │
+│     ↓                                                                       │
+│  6. Response retorna                                                        │
+│     • Apenas appointments do tenant "empresa"                               │
+│     • Dados isolados completamente                                          │
+│     • Frontend mostra com branding do tenant                                │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                            GARANTIAS DE ISOLAMENTO                            ║
+╠════════════════════════════════════════════════════════════════════════════════╣
+║                                                                               ║
+║  🔒 MIDDLEWARE LEVEL                                                          ║
+║     ✅ x-tenant-id validado em cada request                                   ║
+║     ✅ Tenant inexistente = 404                                               ║
+║     ✅ Cache reduz queries ao BD                                              ║
+║                                                                               ║
+║  🔒 AUTENTICAÇÃO LEVEL                                                        ║
+║     ✅ Token contém tenantId                                                  ║
+║     ✅ Token de tenant A não funciona em tenant B                             ║
+║     ✅ Role validado (OWNER/STAFF/CUSTOMER)                                   ║
+║                                                                               ║
+║  🔒 DATABASE LEVEL                                                            ║
+║     ✅ Índices (businessId, id)                                               ║
+║     ✅ Constraints unique([businessId, email])                                ║
+║     ✅ Foreign keys com CASCADE delete                                        ║
+║                                                                               ║
+║  🔒 API LEVEL                                                                 ║
+║     ✅ Cada query filtra por businessId                                       ║
+║     ✅ Nenhuma query retorna dados globais                                    ║
+║     ✅ Resposta validada com schema                                           ║
+║                                                                               ║
+║  🔒 FRONTEND LEVEL                                                            ║
+║     ✅ TenantProvider resolve tenant do URL                                   ║
+║     ✅ Não há forma de trocar de tenant sem re-autenticar                     ║
+║     ✅ Cookies isolados por tenant                                            ║
+║                                                                               ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+```

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -14,10 +15,12 @@ import { Alert } from '@/components/ui/Alert'
 import { Loading } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
 import Collapsible from '@/components/ui/Collapsible'
-import GuidedBooking from '@/components/GuidedBooking'
-import QuickCarRegistration from '@/components/QuickCarRegistration'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
+
+// Lazy load dos componentes pesados
+const GuidedBooking = lazy(() => import('@/components/GuidedBooking'))
+const QuickCarRegistration = lazy(() => import('@/components/QuickCarRegistration'))
 
 interface Customer {
   id: string
@@ -69,6 +72,8 @@ export default function NovoAgendamentoPage() {
   const [error, setError] = useState<string | null>(null)
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false)
   const [showNewCarModal, setShowNewCarModal] = useState(false)
+
+  useRequireAuth('any')
 
   const selectedCustomerId = watch('customerId')
   const selectedDate = watch('date')

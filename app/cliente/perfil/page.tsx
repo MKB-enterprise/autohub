@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAuth } from '@/lib/AuthContext'
+import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { Card } from '@/components/ui/Card'
@@ -11,7 +12,9 @@ import { Loading } from '@/components/ui/Loading'
 import { Alert } from '@/components/ui/Alert'
 import { Modal } from '@/components/ui/Modal'
 import { CarCard, VehicleType } from '@/components/ui/CarCard'
-import QuickCarRegistration from '@/components/QuickCarRegistration'
+
+// Lazy load do modal
+const QuickCarRegistration = lazy(() => import('@/components/QuickCarRegistration'))
 
 interface ProfileFormData {
   name: string
@@ -50,10 +53,11 @@ export default function PerfilPage() {
   const profileForm = useForm<ProfileFormData>()
   const passwordForm = useForm<PasswordFormData>()
 
+  useRequireAuth('customer')
+
+  // Redirecionar admins para a agenda
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login')
-    } else if (user && user.isAdmin) {
+    if (!authLoading && user?.isAdmin) {
       router.push('/agenda')
     } else if (user) {
       loadProfile()
@@ -345,16 +349,20 @@ export default function PerfilPage() {
         </form>
       </Modal>
 
-      <QuickCarRegistration
-        isOpen={showNewCarModal}
-        onClose={() => setShowNewCarModal(false)}
-        onSuccess={() => {
-          setSuccess('Veículo cadastrado com sucesso!')
-          setShowNewCarModal(false)
-          loadProfile()
-        }}
-        customerId={user?.id || ''}
-      />
+      {showNewCarModal && (
+        <Suspense fallback={null}>
+          <QuickCarRegistration
+            isOpen={showNewCarModal}
+            onClose={() => setShowNewCarModal(false)}
+            onSuccess={() => {
+              setSuccess('Veículo cadastrado com sucesso!')
+              setShowNewCarModal(false)
+              loadProfile()
+            }}
+            customerId={user?.id || ''}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }

@@ -26,7 +26,10 @@ export async function GET(request: NextRequest) {
     const services = await prisma.service.findMany({
       where,
       include: {
-        category: true
+        category: true,
+        serviceProducts: {
+          include: { product: true }
+        }
       },
       orderBy: {
         name: 'asc'
@@ -48,7 +51,7 @@ export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
     const body = await request.json()
-    const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId } = body
+    const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId, products } = body
 
     if (!name || !durationMinutes || !price) {
       return NextResponse.json(
@@ -93,6 +96,17 @@ export async function POST(request: NextRequest) {
         category: true
       }
     })
+
+    if (Array.isArray(products) && products.length > 0) {
+      for (const p of products) {
+        if (!p.productId || !p.quantity) continue
+        await prisma.serviceProduct.upsert({
+          where: { serviceId_productId: { serviceId: service.id, productId: p.productId } },
+          update: { quantity: p.quantity },
+          create: { serviceId: service.id, productId: p.productId, quantity: p.quantity },
+        })
+      }
+    }
 
     return NextResponse.json(service, { status: 201 })
   } catch (error) {

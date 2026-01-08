@@ -118,7 +118,11 @@ export async function POST(request: NextRequest) {
 
     console.log('=== CRIAR AGENDAMENTO ===')
     console.log('Body recebido:', JSON.stringify(body, null, 2))
-    console.log('User autenticado:', { id: user.id, isAdmin: user.isAdmin, businessId: (user as any).businessId, customerId: (user as any).customerId })
+    console.log('User autenticado:', {
+      customerId: user.customerId,
+      businessId: user.businessId,
+      isAdmin: user.isAdmin
+    })
 
     // Cliente não-admin só pode criar para si mesmo
     if (!user.isAdmin && customerId !== user.customerId) {
