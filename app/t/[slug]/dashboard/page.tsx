@@ -196,7 +196,10 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setHideValues(v => !v)}
-            className="flex items-center gap-2 text-sm text-slate-200 bg-slate-800/60 border border-slate-700/60 rounded-full px-3 py-1.5 hover:border-slate-500/60 hover:text-white transition-colors"
+            disabled={updatingAppointment !== null}
+            className={`flex items-center gap-2 text-sm text-slate-200 bg-slate-800/60 border border-slate-700/60 rounded-full px-3 py-1.5 hover:border-slate-500/60 hover:text-white transition-colors ${
+              updatingAppointment !== null ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
           >
             {hideValues ? (
@@ -338,16 +341,19 @@ export default function DashboardPage() {
                     setRescheduleModal(null)
                     setRescheduleReason('')
                   }}
-                  className="flex-1 px-4 py-2 rounded-lg border border-slate-700 text-slate-300 font-semibold hover:border-slate-600 hover:text-white transition"
+                  disabled={updatingAppointment === rescheduleModal}
+                  className={`flex-1 px-4 py-2 rounded-lg border border-slate-700 text-slate-300 font-semibold hover:border-slate-600 hover:text-white transition ${
+                    updatingAppointment === rescheduleModal ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={() => handleRequestReschedule(rescheduleModal)}
-                    disabled={!rescheduleReason.trim() || updatingAppointment === rescheduleModal}
+                  disabled={!rescheduleReason.trim() || updatingAppointment === rescheduleModal}
                   className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                    {updatingAppointment === rescheduleModal ? 'Solicitando...' : 'Solicitar'}
+                  {updatingAppointment === rescheduleModal ? 'Solicitando...' : 'Solicitar'}
                 </button>
               </div>
             </div>

@@ -69,6 +69,7 @@ export default function AppointmentsHistoryPage() {
   const [to, setTo] = useState('')
   const [status, setStatus] = useState<'ALL' | keyof typeof statusLabels | ''>('ALL')
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   const url = useMemo(() => {
     const params = new URLSearchParams()
@@ -84,6 +85,22 @@ export default function AppointmentsHistoryPage() {
 
   const isEmpty = !isLoading && appointments.length === 0
 
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    try {
+      await mutate()
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const handleClearFilters = () => {
+    setQ('')
+    setFrom('')
+    setTo('')
+    setStatus('ALL')
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -92,15 +109,12 @@ export default function AppointmentsHistoryPage() {
           <p className="text-slate-400">Busque por cliente, veículo, placa, cor ou serviço.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => mutate()}>Atualizar</Button>
+          <Button variant="secondary" onClick={handleRefresh} disabled={refreshing}>
+            {refreshing ? 'Atualizando...' : 'Atualizar'}
+          </Button>
           <Button
             variant="secondary"
-            onClick={() => {
-              setQ('')
-              setFrom('')
-              setTo('')
-              setStatus('ALL')
-            }}
+            onClick={handleClearFilters}
           >
             Limpar filtros
           </Button>

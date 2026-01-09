@@ -352,7 +352,7 @@ model Product {
   
   // Novos campos para diluição
   isConcentrated Boolean @default(false) @map("is_concentrated")
-  baseUnit      String   @default("ml") // 'ml', 'g', 'unit'
+  baseUnit      String   @default("ml") @map("base_unit") // 'ml', 'g', 'unit'
   packageSizeMl Int      @default(0) @map("package_size_ml")
   costTotal     Decimal  @default(0) @db.Decimal(12, 2) @map("cost_total")
   stockMinMl    Int      @default(0) @map("stock_min_ml")
@@ -839,6 +839,12 @@ model DilutionBatch {
   usedConcentrateMl Int      @map("used_concentrate_ml")
   usedWaterMl       Int      @map("used_water_ml")
   notes             String?
+  
+  // Snapshot da receita no momento do preparo (para detectar alterações posteriores)
+  recipeNameSnapshot        String?  @map("recipe_name_snapshot")
+  ratioProductSnapshot      Float?   @map("ratio_product_snapshot")
+  ratioWaterSnapshot        Float?   @map("ratio_water_snapshot")
+  targetBottleMlSnapshot    Int?     @map("target_bottle_ml_snapshot")
   
   createdByUserId   String?  @map("created_by_user_id")
   createdByUser     User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)

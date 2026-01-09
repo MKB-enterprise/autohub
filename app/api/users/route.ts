@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, getCurrentUser } from '@/lib/auth'
 
 // GET /api/users - Listar usuários (funcionários) da empresa
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAdmin()
-    const businessId = (auth as any).businessId
+    const businessId = auth.businessId
 
     const { searchParams } = new URL(request.url)
     const role = searchParams.get('role')

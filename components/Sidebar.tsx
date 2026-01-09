@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/AuthContext'
@@ -15,8 +15,7 @@ const adminMenuItems = [
   { href: 'carros', label: 'Carros', icon: '🚗' },
   { href: 'servicos', label: 'Serviços', icon: '🔧' },
   { href: 'categorias', label: 'Categorias', icon: '🏷️' },
-  { href: 'produtos', label: 'Produtos', icon: '📦' },
-  { href: 'estoque/diluicao', label: 'Diluição', icon: '🧪' },
+  { href: 'estoque/diluicao', label: 'Estoque & Diluição', icon: '🧪' },
   { href: 'estoque/movimentacoes', label: 'Movimentações', icon: '📊' },
   { href: 'configuracoes', label: 'Configurações', icon: '⚙️' },
 ]
@@ -32,6 +31,7 @@ function Sidebar() {
   const { user, business, logout } = useAuth()
   const { startNavigation } = useNavigation()
   const getTenantPath = useTenantPath()
+  const [loggingOut, setLoggingOut] = useState(false)
 
   // Aceita user (customer) ou business
   if (!user && !business) return null
@@ -46,6 +46,16 @@ function Sidebar() {
 
   const handleNavigate = () => {
     startNavigation()
+  }
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await logout()
+    } catch (err) {
+      setLoggingOut(false)
+    }
   }
 
   return (
@@ -100,11 +110,14 @@ function Sidebar() {
           </div>
         </div>
         <button
-          onClick={() => logout()}
-          className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:bg-gray-800 hover:text-red-400 rounded-lg transition-all text-sm"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className={`w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:bg-gray-800 hover:text-red-400 rounded-lg transition-all text-sm ${
+            loggingOut ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <span>🚪</span>
-          <span>Sair</span>
+          <span>{loggingOut ? 'Saindo...' : 'Sair'}</span>
         </button>
       </div>
     </aside>
