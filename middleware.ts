@@ -19,6 +19,8 @@ export async function middleware(request: NextRequest) {
   const publicPaths = new Set([
     '/',
     '/register',
+    '/api/whatsapp/webhook',
+    '/api/cron/process-whatsapp-queue',
     '/api/health',
     '/api/debug/tenant',
     '/api/maintenance/fix-slug',

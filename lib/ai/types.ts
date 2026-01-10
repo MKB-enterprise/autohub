@@ -1,32 +1,33 @@
-/**
- * AI Core Types
- * Define interfaces e tipos para o sistema de IA
- */
+export type AICapability = 'faq_triage' | 'whatsapp_triage'
 
 export interface AIContext {
   businessId: string
   businessSlug?: string
-  channel: 'whatsapp' | 'web' | 'api'
+  channel: string
   userId?: string
   customerId?: string
-  correlationId: string
+  correlationId?: string
 }
 
 export interface AIRunInput {
-  capability: 'faq_triage' | 'whatsapp_triage'
+  capability: AICapability
   params: Record<string, unknown>
   context: AIContext
 }
 
 export interface AIRunOutput {
   text: string
-  confidence?: number // 0-1
+  confidence?: number
   tags?: string[]
   handoffToHuman?: boolean
   intent?: string
+  meta?: Record<string, unknown>
 }
 
 export interface AICapabilityHandler {
+  name: AICapability
+  systemPrompt: string
+  buildUserPrompt: (params: Record<string, unknown>, context: AIContext) => string
   run(params: Record<string, unknown>, context: AIContext): Promise<AIRunOutput>
 }
 

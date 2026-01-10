@@ -50,7 +50,7 @@ export async function sendTextMessage(input: SendTextMessageInput): Promise<{
     throw new Error('WhatsApp Cloud API credentials not configured')
   }
 
-  const url = `https://graph.instagram.com/${WHATSAPP_API_VERSION}/${META_WA_PHONE_NUMBER_ID}/messages`
+  const url = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${META_WA_PHONE_NUMBER_ID}/messages`
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -114,7 +114,7 @@ export async function sendTemplateMessage(
     throw new Error('WhatsApp Cloud API credentials not configured')
   }
 
-  const url = `https://graph.instagram.com/${WHATSAPP_API_VERSION}/${META_WA_PHONE_NUMBER_ID}/messages`
+  const url = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${META_WA_PHONE_NUMBER_ID}/messages`
 
   const payload = {
     messaging_product: 'whatsapp',

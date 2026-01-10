@@ -3,7 +3,6 @@
  */
 
 export { sendTextMessage, sendTemplateMessage } from './client'
-export type { } from './client'
 export { isWithin24hWindow, hoursUntilWindowExpires } from './window'
 export {
   resolveTemplateId,

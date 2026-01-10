@@ -1,8 +1,3 @@
-/**
- * WhatsApp Triage Capability
- * Identifica intenções específicas de WhatsApp (respostas curtas, sem formatting)
- */
-
 import { AICapabilityHandler, AIRunOutput, AIContext } from '../types'
 
 interface WhatsAppTriageParams {
@@ -11,6 +6,13 @@ interface WhatsAppTriageParams {
 }
 
 export const whatsappTriageCapability: AICapabilityHandler = {
+  name: 'whatsapp_triage',
+  systemPrompt:
+    'Você responde como atendente de WhatsApp, em português, com mensagens curtas, claras e sem formatação especial. Ajude a entender a intenção e peça os mínimos dados para seguir.',
+  buildUserPrompt: (params: Record<string, unknown>) => {
+    const text = typeof params.text === 'string' ? params.text : ''
+    return `Mensagem recebida no WhatsApp: "${text}"`
+  },
   async run(
     params: Record<string, unknown>,
     context: AIContext

@@ -1,99 +1,54 @@
 # AI + WhatsApp Integration Plan (MVP)
 
 **Data:** January 10, 2026  
-**Status:** Phase 0 - Audit Complete
+**Status:** Phase 0 – Auditoria revisada
 
 ---
 
 ## 1. TENANT & BUSINESS RESOLUTION
 
-### Como funciona hoje:
-- **middleware.ts**: Valida que rotas `/t/{slug}/*` são permitidas e passa para Next.js
-- **tenant-resolver.ts**: 
-  - `resolveTenantBySlug(slug)` busca em BD com cache 5 min
-  - Extrai slug de:
-    1. Subdomínio (ex: `empresa.autohub.com`)
-    2. Header `X-Tenant-Slug`
-    3. Path `/t/{slug}/...`
-  - Retorna `TenantContext` com `tenantId`, `tenantSlug`, `business` obj
-- **Prisma Client**: Inicializado em `lib/db.ts`
-- **Feature flags**: Localizadas em `lib/plan.ts`
-  - `getPlanForBusiness(businessId)` retorna:
-    - `plan.whatsapp` (boolean)
-    - `plan.ai` (boolean)
-    - `plan.maxUsers`, `plan.code`
-  - Fallback para `subscriptionPlan` enum (BASIC, PROFESSIONAL, ENTERPRISE)
+### Como funciona hoje
+- **middleware.ts**: deixa passar `/t/{slug}/…` e `/api/**`; demais rotas redirecionam para marketing.
+- **lib/tenant-resolver.ts**: resolve tenant por subdomínio, header `X-Tenant-Slug`, path `/t/{slug}` ou cookie `tenant_slug`; cache em memória 5 min; fallback dev para `default`. Quando possível, reaproveita `auth_token`.
+- **Prisma Client**: `lib/db.ts` instancia singleton do Prisma Client.
+- **Feature flags**: `lib/plan.ts` expõe `getPlanForBusiness`, `assertWhatsAppAllowed`, `assertIaAllowed`; usa `Plan` quando existe ou fallback de `subscriptionPlan` enum (`SubscriptionPlan` BASIC/PROFESSIONAL/ENTERPRISE → `SIMPLES/PROFISSIONAL/COMPLETO`).
 
 ---
 
 ## 2. MODELOS EXISTENTES
 
 ### AiInsightLog (ai_insight_logs)
-```sql
-- id (PK)
-- businessId (FK) -> Business
-- userId (FK, nullable)
-- prompt (texto)
-- response (texto nullable)
-- latencyMs (int nullable)
-- costUsd (decimal nullable)
-- createdAt
-```
-**Índice**: (businessId, createdAt)
+- Campos: id, businessId (FK), userId?, prompt, response?, latencyMs?, costUsd?, createdAt.
+- Índice: (businessId, createdAt).
 
 ### WhatsAppMessageQueue (whatsapp_message_queue)
-```sql
-- id (PK)
-- businessId (FK) -> Business
-- customerId (FK, nullable) -> Customer
-- phone (string)
-- templateKey (string) -- referência a NotificationTemplate.type
-- payload (JSON)
-- status (enum: PENDING, SENT, FAILED)
-- scheduledAt (datetime nullable)
-- sentAt (datetime nullable)
-- error (string nullable)
-- createdAt, updatedAt
-```
-**Índice**: (businessId, status)
+- Campos: id, businessId (FK), customerId?, phone, templateKey, payload JSON, status (PENDING/SENT/FAILED), scheduledAt?, sentAt?, error?, conversationId?, inboundMessageId?, retryCount, nextAttemptAt?, createdAt/updatedAt.
+- Índices: (businessId, status) e (businessId, conversationId).
+
+### WhatsAppConversation (whatsapp_conversations)
+- Campos: id, businessId (FK), customerPhone, customerId?, lastCustomerMessageAt?, stateJson JSON, status (ACTIVE/INACTIVE/AWAITING_RESPONSE), createdAt/updatedAt.
+- Unique: (businessId, customerPhone).
+
+### WhatsAppInboundMessage (whatsapp_inbound_messages)
+- Campos: id, businessId (FK), conversationId (FK), fromPhone, text, receivedAt, rawJson JSON, waMessageId?, createdAt.
+- Índices: (businessId, conversationId) e (businessId, receivedAt).
 
 ### NotificationTemplate (notification_templates)
-```sql
-- id (PK)
-- businessId (FK) -> Business
-- type (enum: APPOINTMENT_CREATED, APPOINTMENT_CONFIRMED, ..., APPOINTMENT_1H_REMINDER)
-- title (string)
-- body (string) -- aceita {vars}
-- isActive (boolean)
-- createdAt, updatedAt
-```
-**Unique**: (businessId, type)
+- Enum atual `NotificationTemplateType`: APPOINTMENT_CREATED, APPOINTMENT_CONFIRMED, APPOINTMENT_CANCELED, APPOINTMENT_RESCHEDULED, APPOINTMENT_24H_REMINDER, APPOINTMENT_1H_REMINDER, APPOINTMENT_COMPLETED.
+- Unique: (businessId, type). Campos: title, body, isActive.
 
-### Plan (plans) - Já existe, será usado
-```sql
-- id (PK)
-- code (string unique)
-- name (string)
-- maxUsers (int nullable)
-- whatsappEnabled (boolean)
-- aiEnabled (boolean)
-- monthlyQuoteLimit (int nullable)
-- createdAt, updatedAt
-```
+### Plan (plans)
+- Campos: code (unique), name, maxUsers?, whatsappEnabled, aiEnabled, monthlyQuoteLimit?, createdAt/updatedAt.
 
 ### Business (businesses)
-- Tem relacionamento: `plan (FK)` -> Plan
-- Tem slug único
-- Campos: email, phone, address, branding config, etc.
+- Contém slug (unique), relação opcional para `Plan` (planId) e enum `subscriptionPlan` legado.
 
 ---
 
 ## 3. LOGGER E LOGGING
 
-### Logger atual:
-- **lib/logger.ts**: File-based logger (fs append a `debug-auth.log`)
-  - Funções: `appendLog()`, `clearLog()`, `readLog()`
-  - Apenas server-side (verifica `typeof window`)
+### Logger atual
+- **lib/logger.ts**: logger file-based (`debug-auth.log`), server-side only, helpers `appendLog`, `clearLog`, `readLog`.
 
 ### Recomendação MVP:
 - Usar `console.log()` com timestamp estruturado
@@ -106,49 +61,20 @@
 ## 4. CUSTOMER E CONVERSATION
 
 ### Customer (customers)
-- Tem `businessId`, `phone`, `email`, etc.
-- Já tem relacionamento com `WhatsAppMessageQueue`
-- Unique: (businessId, phone) e (businessId, email)
+- Campos de identificação + relacionamento com `WhatsAppMessageQueue`. Unique: (businessId, phone) e (businessId, email).
 
-### Não existe ainda: WhatsAppConversation
-**Será criado em FASE 3** (tabela nova mínima):
-```sql
-WhatsAppConversation:
-- id (PK)
-- businessId (FK)
-- customerPhone (string)
-- lastCustomerMessageAt (datetime) -- para janela 24h
-- stateJson (JSON) -- conversa em progresso
-- status (enum: ACTIVE, INACTIVE, AWAITING_RESPONSE)
-- createdAt, updatedAt
-Unique: (businessId, customerPhone)
-```
-
-### Não existe ainda: WhatsAppInboundMessage
-**Será criado em FASE 3** (log de inbound):
-```sql
-WhatsAppInboundMessage:
-- id (PK)
-- businessId (FK)
-- conversationId (FK)
-- fromPhone (string)
-- text (string)
-- receivedAt (datetime)
-- rawJson (JSON) -- resposta da Meta
-- createdAt
-```
+### Conversas e inbound já existem
+- `WhatsAppConversation` e `WhatsAppInboundMessage` já estão no schema; não precisamos criar novas tabelas para sessão/inbound no MVP, apenas usar.
 
 ---
 
 ## 5. APIS E ESTRUTURA EXISTENTES
 
 ### WhatsApp API (app/api/whatsapp/)
-- **queue/** - VAZIO, apenas pasta estrutura
+- **queue/route.ts**: GET/POST; exige admin (`requireAdmin`), valida plano com `assertWhatsAppAllowed`, persiste em `WhatsAppMessageQueue`. Não há webhook nem consumer implementados.
 
-### Estrutura geral:
-- `/app/api/[modelo]/route.ts` - padrão Next.js 14 App Router
-- Cada route recebe `NextRequest`, retorna `NextResponse`
-- Rotas públicas (sem auth) estão listadas em middleware.ts publicPaths
+### Estrutura geral
+- Rotas API no App Router (`app/api/**/route.ts`), retornam `NextResponse`. Rotas públicas listadas em `middleware.ts` bypassam redirect.
 
 ---
 
@@ -207,9 +133,9 @@ DATABASE_URL=postgresql://...
 | 0 | - | Auditoria | `docs/ai-whatsapp-plan.md` |
 | 1 | lib/ai | AI Core reutilizável | `lib/ai/{types,ai-gateway,capabilities/*}.ts` |
 | 2 | lib/whatsapp | Client Meta | `lib/whatsapp/{client,window,template-resolver}.ts` |
-| 3 | api/whatsapp | Webhook inbound | `app/api/whatsapp/webhook/route.ts` + migrations |
+| 3 | api/whatsapp | Webhook inbound | `app/api/whatsapp/webhook/route.ts` (usar tabelas existentes) + eventual config BusinessWhatsApp mapping |
 | 4 | api/cron | Queue consumer | `app/api/cron/process-whatsapp-queue/route.ts` |
-| 5 | config | Templates + 24h | Update NotificationTemplate, docs |
+| 5 | config | Templates + 24h | Expand `NotificationTemplateType`/mapeamento, docs |
 | 6 | tests | Qualidade | `tests/`, smoke tests |
 
 ---

@@ -1,9 +1,4 @@
-/**
- * FAQ + Triage Capability
- * Identifica intenções de clientes em texto aberto
- */
-
-import { AICapabilityHandler, AIRunOutput, AIContext } from './types'
+import { AICapabilityHandler, AIRunOutput, AIContext } from '../types'
 
 interface FaqTriageParams {
   text: string
@@ -21,6 +16,13 @@ const FAQ_INTENTS = [
 ]
 
 export const faqTriageCapability: AICapabilityHandler = {
+  name: 'faq_triage',
+  systemPrompt:
+    'Você é um assistente conciso que responde dúvidas rápidas sobre serviços automotivos. Respostas curtas, diretas, estilo WhatsApp, em português do Brasil.',
+  buildUserPrompt: (params: Record<string, unknown>) => {
+    const text = typeof params.text === 'string' ? params.text : ''
+    return `Pergunta do cliente: "${text}"`
+  },
   async run(params: Record<string, unknown>, context: AIContext): Promise<AIRunOutput> {
     const { text = '' } = params as FaqTriageParams
     const lowerText = text.toLowerCase().trim()
