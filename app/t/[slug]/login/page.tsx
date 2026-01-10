@@ -29,12 +29,12 @@ export default function TenantLoginPage() {
     }
   }, [tenant, tenantLoading, router])
 
-  // Se já está logado (cliente ou business), redirecionar para dashboard
+  // Se já está logado (cliente ou business), redirecionar corretamente
   useEffect(() => {
     if (!authLoading) {
       if (user) {
-        // Logado como cliente
-        router.push(withTenant('/dashboard', slug))
+        // Cliente logado vai para área de cliente
+        router.push(withTenant('/cliente', slug))
       } else if (business) {
         // Logado como business - redirecionar para dashboard de negócio
         router.push(withTenant('/dashboard', slug))

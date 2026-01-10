@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateAppointmentSlot, calculateTotalPrice } from '@/lib/availability'
 import { requireAdmin, requireAuth } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/appointments - Listar agendamentos
 export async function GET(request: NextRequest) {
@@ -113,6 +114,10 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth()
 
+    // Resolve o tenant para obter o businessId quando o token é só de customer
+    const tenantResult = await resolveTenantFromRequest(request, { allowHeaderInProd: true })
+    const businessId = (user as any).businessId || tenantResult.context?.tenantId
+
     const body = await request.json()
     const { customerId, carId, startDatetime, serviceIds, notes } = body
 
@@ -123,6 +128,14 @@ export async function POST(request: NextRequest) {
       businessId: user.businessId,
       isAdmin: user.isAdmin
     })
+
+    if (!businessId) {
+      console.log('❌ Nenhum businessId resolvido (token sem business e tenant ausente)')
+      return NextResponse.json(
+        { error: 'Tenant não identificado para criar agendamento' },
+        { status: 400 }
+      )
+    }
 
     // Cliente não-admin só pode criar para si mesmo
     if (!user.isAdmin && customerId !== user.customerId) {
@@ -154,7 +167,7 @@ export async function POST(request: NextRequest) {
 
     // Validar disponibilidade
     console.log('🔍 Validando disponibilidade do slot...')
-    const validation = await validateAppointmentSlot(start, serviceIds, undefined, (user as any).businessId)
+    const validation = await validateAppointmentSlot(start, serviceIds, undefined, businessId)
     console.log('✅ Resultado validação:', validation)
     
     if (!validation.valid) {
@@ -169,7 +182,7 @@ export async function POST(request: NextRequest) {
     console.log('🔍 Buscando serviços:', serviceIds)
     const services = await prisma.service.findMany({
       where: {
-        businessId: (user as any).businessId,
+        businessId,
         id: { in: serviceIds },
         isActive: true
       }
@@ -195,7 +208,7 @@ export async function POST(request: NextRequest) {
 
     const appointment = await prisma.appointment.create({
       data: {
-        businessId: (user as any).businessId,
+        businessId,
         customerId,
         carId,
         startDatetime: start,

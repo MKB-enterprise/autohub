@@ -16,7 +16,9 @@ import Link from 'next/link'
 import type { Appointment, User } from '@/lib/types'
 
 export default function AgendaPage() {
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
+  if (!isAuthorized) return null
+  
   return (
     <RequireLoadingComplete>
       <AgendaContent />

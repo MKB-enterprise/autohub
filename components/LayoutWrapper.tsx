@@ -42,7 +42,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
   if (isPublicPage || (!user && !business)) {
     return (
       <div className="min-h-screen bg-gray-950 text-gray-100">
-        <main className="max-w-6xl mx-auto px-4 md:px-8 pt-0 pb-4 md:pt-0 md:pb-8">
+        <main className="px-4 md:px-8 pt-0 pb-4 md:pt-0 md:pb-8">
           {children}
         </main>
       </div>
@@ -62,7 +62,7 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
         {/* Conteúdo */}
         <div className="flex-1 w-full">
           <main className="bg-gray-900/40 min-h-screen">
-            <div className="max-w-6xl mx-auto px-4 md:px-8 py-4 md:py-8 pb-28 md:pb-8">
+            <div className="px-4 md:px-8 py-4 md:py-8 pb-28 md:pb-8">
               {children}
             </div>
           </main>

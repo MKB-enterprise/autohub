@@ -19,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import Collapsible from '@/components/ui/Collapsible'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
+import { mutate as globalMutate } from 'swr'
 
 // Lazy load dos componentes pesados
 const GuidedBooking = lazy(() => import('@/components/GuidedBooking'))
@@ -225,8 +226,8 @@ export default function NovoAgendamentoPage() {
 
   const { execute: onSubmit, isLoading: saving } = useOptimisticUpdate({
     onOptimistic: () => {
-      // Navega LOGO para /agenda sem esperar o backend
-      router.push(getTenantPath('agenda'))
+      // Não navegar ainda; aguardar sucesso para evitar cache antigo
+      setError(null)
     },
     onAsync: async () => {
       const form = document.querySelector('form') as HTMLFormElement | null
@@ -268,6 +269,18 @@ export default function NovoAgendamentoPage() {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Erro ao criar agendamento')
       }
+
+      return { customerId }
+    },
+    onSuccess: (result) => {
+      const cid = result?.customerId
+      if (cid) {
+        // Força revalidação do cache de agendamentos do cliente
+        globalMutate(`/api/customers/${cid}`)
+      }
+
+      const destination = user?.isAdmin ? getTenantPath('agenda') : getTenantPath('cliente')
+      router.push(destination)
     },
     onError: (err) => {
       setError(err.message)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
@@ -54,17 +54,10 @@ export default function PerfilPage() {
 
   const profileForm = useForm<ProfileFormData>()
   const passwordForm = useForm<PasswordFormData>()
+  const hasLoadedProfile = useRef(false)
+  const isLoadingProfile = useRef(false)
 
   useRequireAuth('customer')
-
-  // Redirecionar admins para a agenda
-  useEffect(() => {
-    if (!authLoading && user?.isAdmin) {
-      router.push(getTenantPath('agenda'))
-    } else if (user) {
-      loadProfile()
-    }
-  }, [user, authLoading, router, getTenantPath])
 
   function formatPhone(input: string) {
     const digits = input.replace(/\D/g, '').slice(0, 11)
@@ -75,10 +68,13 @@ export default function PerfilPage() {
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
   }
 
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
+    if (!user?.id || hasLoadedProfile.current || isLoadingProfile.current) return
+    
+    isLoadingProfile.current = true
     try {
       setLoading(true)
-      const response = await fetch(`/api/customers/${user?.id}`)
+      const response = await fetch(`/api/customers/${user.id}`)
       
       if (!response.ok) {
         throw new Error('Erro ao carregar perfil')
@@ -91,12 +87,30 @@ export default function PerfilPage() {
         email: data.email || ''
       })
       setCars(data.cars || [])
+      hasLoadedProfile.current = true
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro desconhecido')
     } finally {
       setLoading(false)
+      isLoadingProfile.current = false
     }
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  // Redirecionar admins para a agenda e carregar perfil
+  useEffect(() => {
+    if (authLoading) return
+    
+    if (user?.isAdmin) {
+      router.push(getTenantPath('agenda'))
+      return
+    }
+    
+    if (user?.id && !hasLoadedProfile.current) {
+      loadProfile()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user?.id, user?.isAdmin])
 
   async function onProfileSubmit(data: ProfileFormData) {
     try {
@@ -193,6 +207,8 @@ export default function PerfilPage() {
       }
 
       setSuccess('Veiculo excluido com sucesso!')
+      hasLoadedProfile.current = false
+      isLoadingProfile.current = false
       loadProfile()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao excluir')
@@ -359,6 +375,8 @@ export default function PerfilPage() {
             onSuccess={() => {
               setSuccess('Veículo cadastrado com sucesso!')
               setShowNewCarModal(false)
+              hasLoadedProfile.current = false
+              isLoadingProfile.current = false
               loadProfile()
             }}
             customerId={user?.id || ''}

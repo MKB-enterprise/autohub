@@ -39,8 +39,8 @@ export default function TenantHomePage() {
         </div>
         <div className="flex items-center gap-2 md:gap-3">
           {user ? (
-            <Button size="sm" onClick={() => router.push(withTenant(user.isAdmin ? '/agenda' : '/cliente', slug))}>
-              Painel
+            <Button size="sm" onClick={() => router.push(withTenant('/cliente', slug))}>
+              Meu Painel
             </Button>
           ) : (
             <>

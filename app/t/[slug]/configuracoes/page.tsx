@@ -28,7 +28,9 @@ import { EmployeesSection } from '@/components/EmployeesSection'
 type TabType = 'branding' | 'hours' | 'capacity' | 'cards' | 'contact' | 'notifications' | 'employees'
 
 export default function TenantSettingsPage() {
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
+  if (!isAuthorized) return null
+  
   const router = useRouter()
   const { user, business, loading: authLoading } = useAuth()
   const { tenant, settings, loading, error: tenantError, refreshSettings } = useTenant()

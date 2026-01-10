@@ -55,22 +55,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (response.ok) {
         const data = await response.json()
+        console.log('[AUTH CONTEXT] checkAuth response:', {
+          hasBusiness: !!data.business,
+          hasUser: !!data.user,
+          businessId: data.business?.id ? '***' : null,
+          userId: data.user?.id ? '***' : null
+        })
         
         if (data.business) {
+          console.log('[AUTH CONTEXT] Setting business auth')
           setBusiness(data.business)
           setUser(null)
         } else if (data.user) {
+          console.log('[AUTH CONTEXT] Setting customer auth')
           setUser(data.user)
           setBusiness(null)
         } else {
+          console.log('[AUTH CONTEXT] Clearing auth')
           setUser(null)
           setBusiness(null)
         }
       } else {
+        console.log('[AUTH CONTEXT] Auth check failed with status:', response.status)
         setUser(null)
         setBusiness(null)
       }
     } catch (error) {
+      console.error('[AUTH CONTEXT] Error in checkAuth:', error)
       setUser(null)
       setBusiness(null)
     } finally {

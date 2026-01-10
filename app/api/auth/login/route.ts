@@ -87,12 +87,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Gerar token
-    const token = generateToken({
+    const tokenPayload = {
       customerId: customer.id,
-      businessId: customer.businessId as any,
       email: customer.email!,
       isAdmin: customer.isAdmin
+    }
+    
+    console.log('[LOGIN] Gerando token para cliente:', {
+      customerId: tokenPayload.customerId,
+      email: tokenPayload.email,
+      isAdmin: tokenPayload.isAdmin,
+      hasBusinessId: false  // ← Confirmação que NÃO tem businessId
     })
+    
+    const token = generateToken(tokenPayload)
 
     // Criar resposta com cookie
     const response = NextResponse.json({

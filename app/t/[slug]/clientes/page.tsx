@@ -33,7 +33,9 @@ interface Customer {
 }
 
 export default function ClientesPage() {
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
+  if (!isAuthorized) return null
+  
   const router = useRouter()
   const getTenantPath = useTenantPath()
   const { user, business, loading: authLoading } = useAuth()

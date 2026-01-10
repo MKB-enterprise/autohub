@@ -44,7 +44,10 @@ const statusLabels: Record<string, string> = {
 
 export default function DashboardPage() {
   // Proteger: só business pode acessar
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
+  
+  // Bloqueia renderização enquanto valida autorização
+  if (!isAuthorized) return null
   
   const getTenantPath = useTenantPath()
   

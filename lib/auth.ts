@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { cookies } from 'next/headers'
+import { appendLog } from './logger'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-this'
 
@@ -16,8 +17,19 @@ export function generateToken(payload: TokenPayload): string {
 
 export function verifyToken(token: string): TokenPayload | null {
   try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload
+    const payload = jwt.verify(token, JWT_SECRET) as TokenPayload
+    console.log('[AUTH VERIFY] Token decoded:', {
+      customerId: payload.customerId ? '***' : null,
+      businessId: payload.businessId ? '***' : null,
+      email: payload.email,
+      isAdmin: payload.isAdmin
+    })
+    const msg = `Token verified: customerId=${payload.customerId ? '***' : 'null'}, businessId=${payload.businessId ? '***' : 'null'}, isAdmin=${payload.isAdmin}`
+    appendLog(msg)
+    return payload
   } catch (error) {
+    console.log('[AUTH VERIFY] Token verification failed:', error)
+    appendLog(`Token verification failed: ${error}`)
     return null
   }
 }
@@ -28,9 +40,29 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 export async function getCurrentUser(): Promise<TokenPayload | null> {
-  const token = await getAuthToken()
-  if (!token) return null
-  return verifyToken(token)
+  try {
+    const token = await getAuthToken()
+    console.log('[AUTH] getCurrentUser - token exists:', !!token)
+    if (!token) {
+      console.log('[AUTH] No token in cookies')
+      appendLog('No token in cookies')
+      return null
+    }
+    console.log('[AUTH] Token found, verifying...')
+      appendLog('Token found in cookies, verifying...')
+    const payload = verifyToken(token)
+    console.log('[AUTH] getCurrentUser returning:', payload ? { customerId: payload.customerId ? '***' : null, businessId: payload.businessId ? '***' : null } : null)
+        if (payload) {
+          appendLog(`getCurrentUser returning: customerId=${payload.customerId ? '***' : 'null'}, businessId=${payload.businessId ? '***' : 'null'}`)
+        } else {
+          appendLog('getCurrentUser returning: null (token invalid)')
+        }
+    return payload
+  } catch (error) {
+    console.error('[AUTH] getCurrentUser error:', error)
+      appendLog(`getCurrentUser error: ${error}`)
+    return null
+  }
 }
 
 export async function requireAuth(): Promise<TokenPayload> {

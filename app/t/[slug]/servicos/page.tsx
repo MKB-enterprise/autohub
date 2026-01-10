@@ -51,7 +51,9 @@ function formatDuration(minutes: number): string {
 }
 
 export default function ServicosPage() {
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
+  if (!isAuthorized) return null
+  
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const { data: services = [], isLoading: loading, mutate } = useData<Service[]>('/api/services')
