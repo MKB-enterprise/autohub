@@ -33,24 +33,29 @@ type SendTemplateMessageInput = z.infer<typeof SendTemplateMessageSchema>
 
 /**
  * Envia mensagem de texto via Cloud API
+ * @param input - Payload com to, text
+ * @param options - Credenciais opcionais (usar BD se não fornecido)
  */
-export async function sendTextMessage(input: SendTextMessageInput): Promise<{
+export async function sendTextMessage(
+  input: SendTextMessageInput,
+  options?: { accessToken?: string; phoneNumberId?: string; apiVersion?: string }
+): Promise<{
   messageId: string
   status: string
 }> {
   const validated = SendTextMessageSchema.parse(input)
 
-  const {
-    META_WA_ACCESS_TOKEN,
-    META_WA_PHONE_NUMBER_ID,
-    WHATSAPP_API_VERSION = 'v19.0'
-  } = process.env
+  const accessToken =
+    options?.accessToken || process.env.META_WA_ACCESS_TOKEN
+  const phoneNumberId =
+    options?.phoneNumberId || process.env.META_WA_PHONE_NUMBER_ID
+  const apiVersion = options?.apiVersion || process.env.WHATSAPP_API_VERSION || 'v19.0'
 
-  if (!META_WA_ACCESS_TOKEN || !META_WA_PHONE_NUMBER_ID) {
+  if (!accessToken || !phoneNumberId) {
     throw new Error('WhatsApp Cloud API credentials not configured')
   }
 
-  const url = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${META_WA_PHONE_NUMBER_ID}/messages`
+  const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -68,7 +73,7 @@ export async function sendTextMessage(input: SendTextMessageInput): Promise<{
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${META_WA_ACCESS_TOKEN}`
+        Authorization: `Bearer ${accessToken}`
       },
       body: JSON.stringify(payload)
     })
@@ -95,26 +100,29 @@ export async function sendTextMessage(input: SendTextMessageInput): Promise<{
 
 /**
  * Envia mensagem com template via Cloud API
+ * @param input - Payload com to, templateNameOrId, language, components
+ * @param options - Credenciais opcionais (usar BD se não fornecido)
  */
 export async function sendTemplateMessage(
-  input: SendTemplateMessageInput
+  input: SendTemplateMessageInput,
+  options?: { accessToken?: string; phoneNumberId?: string; apiVersion?: string }
 ): Promise<{
   messageId: string
   status: string
 }> {
   const validated = SendTemplateMessageSchema.parse(input)
 
-  const {
-    META_WA_ACCESS_TOKEN,
-    META_WA_PHONE_NUMBER_ID,
-    WHATSAPP_API_VERSION = 'v19.0'
-  } = process.env
+  const accessToken =
+    options?.accessToken || process.env.META_WA_ACCESS_TOKEN
+  const phoneNumberId =
+    options?.phoneNumberId || process.env.META_WA_PHONE_NUMBER_ID
+  const apiVersion = options?.apiVersion || process.env.WHATSAPP_API_VERSION || 'v19.0'
 
-  if (!META_WA_ACCESS_TOKEN || !META_WA_PHONE_NUMBER_ID) {
+  if (!accessToken || !phoneNumberId) {
     throw new Error('WhatsApp Cloud API credentials not configured')
   }
 
-  const url = `https://graph.facebook.com/${WHATSAPP_API_VERSION}/${META_WA_PHONE_NUMBER_ID}/messages`
+  const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`
 
   const payload = {
     messaging_product: 'whatsapp',
@@ -134,7 +142,7 @@ export async function sendTemplateMessage(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${META_WA_ACCESS_TOKEN}`
+        Authorization: `Bearer ${accessToken}`
       },
       body: JSON.stringify(payload)
     })

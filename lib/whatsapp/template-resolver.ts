@@ -110,17 +110,55 @@ export async function renderFullTemplate(
   const components = []
 
   // MVP: hardcodear templates, depois via BD
-  if (templateKey === 'REOPEN_CONVERSATION_UTILITY') {
-    const bodyText = 'Olá, posso te ajudar a agendar um serviço? Responda esta mensagem para continuarmos.'
-    components.push({
-      type: 'body',
-      parameters: [
-        {
-          type: 'text',
-          text: variables ? renderTemplateVariables(bodyText, variables) : bodyText
-        }
-      ]
-    })
+  // Cada template tem seu body text pré-definido na Meta
+  switch (templateKey) {
+    case 'APPOINTMENT_CONFIRMATION_UTILITY': {
+      // Meta template: appointment_confirmation_utility
+      // Variables: {{1}} = customerName, {{2}} = serviceName, {{3}} = datetime
+      const bodyText = 'Olá {customerName}, seu agendamento foi confirmado!\n\nServiço: {serviceName}\nData e Hora: {appointmentDateTime}\n\nQualquer dúvida, responda esta mensagem.'
+      components.push({
+        type: 'body',
+        parameters: [
+          {
+            type: 'text',
+            text: variables ? renderTemplateVariables(bodyText, variables) : bodyText
+          }
+        ]
+      })
+      break
+    }
+    case 'APPOINTMENT_REMINDER_UTILITY': {
+      // Meta template: appointment_reminder_utility
+      // Variables: {{1}} = customerName, {{2}} = serviceName, {{3}} = datetime
+      const bodyText = 'Olá {customerName}, você tem um agendamento em 24h!\n\nServiço: {serviceName}\nData e Hora: {appointmentDateTime}\n\nConfirme respondendo esta mensagem.'
+      components.push({
+        type: 'body',
+        parameters: [
+          {
+            type: 'text',
+            text: variables ? renderTemplateVariables(bodyText, variables) : bodyText
+          }
+        ]
+      })
+      break
+    }
+    case 'REOPEN_CONVERSATION_UTILITY': {
+      // Meta template: reopen_conversation_utility
+      // Variables: {{1}} = customerName (optional)
+      const bodyText = 'Olá {customerName}, posso te ajudar a agendar um serviço?\n\nResponda esta mensagem para continuarmos! 😊'
+      components.push({
+        type: 'body',
+        parameters: [
+          {
+            type: 'text',
+            text: variables ? renderTemplateVariables(bodyText, variables) : bodyText
+          }
+        ]
+      })
+      break
+    }
+    default:
+      throw new Error(`Template desconhecido: ${templateKey}`)
   }
 
   return {

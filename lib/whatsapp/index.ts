@@ -9,4 +9,11 @@ export {
   renderTemplateVariables,
   renderFullTemplate
 } from './template-resolver'
+export {
+  getWhatsAppConfig,
+  createWhatsAppConfig,
+  updateWhatsAppConfig,
+  deleteWhatsAppConfig,
+  toggleWhatsAppConfig
+} from './business-config'
 export type { RenderedTemplate } from './template-resolver'

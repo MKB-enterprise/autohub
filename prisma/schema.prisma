@@ -101,6 +101,7 @@ model Business {
   whatsappQueue     WhatsAppMessageQueue[]
   whatsappConversations WhatsAppConversation[]
   whatsappInboundMessages WhatsAppInboundMessage[]
+  whatsappConfig    WhatsAppBusinessConfig?
   dilutionRecipes   DilutionRecipe[]
   dilutionBatches   DilutionBatch[]
   usageTemplates    ServiceProductUsageTemplate[]
@@ -661,6 +662,24 @@ model WhatsAppInboundMessage {
   @@map("whatsapp_inbound_messages")
 }
 
+model WhatsAppBusinessConfig {
+  id              String  @id @default(cuid())
+  businessId      String  @unique @map("business_id")
+  phoneNumberId   String  @map("phone_number_id")
+  accessToken     String  @map("access_token")
+  displayName     String? @map("display_name")
+  appSecret       String? @map("app_secret")
+  isActive        Boolean @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([isActive])
+  @@map("whatsapp_business_config")
+}
+
 model Settings {
   id                       String   @id @default(cuid())
   openingTimeWeekday       String   @map("opening_time_weekday")
@@ -763,6 +782,10 @@ enum NotificationTemplateType {
   APPOINTMENT_24H_REMINDER
   APPOINTMENT_1H_REMINDER
   APPOINTMENT_COMPLETED
+  // WhatsApp Cloud API UTILITY templates (24h window)
+  APPOINTMENT_CONFIRMATION_UTILITY
+  APPOINTMENT_REMINDER_UTILITY
+  REOPEN_CONVERSATION_UTILITY
 
   @@map("notification_template_type")
 }

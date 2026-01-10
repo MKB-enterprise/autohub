@@ -16,6 +16,7 @@ import { prisma } from '@/lib/db'
 import { getPlanForBusiness } from '@/lib/plan'
 import { runAI } from '@/lib/ai'
 import { sendTextMessage, sendTemplateMessage, renderFullTemplate, isWithin24hWindow } from '@/lib/whatsapp'
+import type { RenderedTemplate } from '@/lib/whatsapp'
 
 const BATCH_SIZE = 25
 const TIMEOUT_MS = 9000 // 9s para Vercel
@@ -130,6 +131,17 @@ async function processMessage(message: any): Promise<void> {
     return
   }
 
+  // Buscar config do business
+  const whatsappConfig = await prisma.whatsappConfig.findUnique({
+    where: { businessId }
+  })
+
+  if (!whatsappConfig || !whatsappConfig.isActive) {
+    console.warn(`[CRON] WhatsApp config not configured or inactive for business ${businessId.substring(0, 8)}...`)
+    await updateQueueStatus(messageId, 'SKIPPED', 'WhatsApp config not found')
+    return
+  }
+
   // Determinar janela 24h
   const within24h = isWithin24hWindow(conversation.lastCustomerMessageAt)
   console.log(
@@ -138,6 +150,7 @@ async function processMessage(message: any): Promise<void> {
 
   let responseText: string
   let useTemplate = false
+  let renderedTemplate: RenderedTemplate | null = null
 
   if (within24h) {
     // Janela aberta: gerar resposta (IA ou fallback)
@@ -177,13 +190,13 @@ async function processMessage(message: any): Promise<void> {
     // Janela fechada: enviar template UTILITY
     useTemplate = true
     try {
-      const template = await renderFullTemplate(
+      renderedTemplate = await renderFullTemplate(
         'REOPEN_CONVERSATION_UTILITY',
         businessId,
         { customerName: (message.payload as any)?.customerName || 'Cliente' }
       )
-      // Para MVP, enviar template renderizado como texto
-      responseText = 'Olá, posso te ajudar a agendar um serviço? Responda esta mensagem para continuarmos.'
+      // Quando fora da janela 24h, usar template aprovado pela Meta
+      responseText = ''
     } catch (error) {
       console.warn(`[CRON] Template error, using fallback:`, error)
       responseText = 'Olá! Como posso ajudar? 😊'
@@ -192,10 +205,29 @@ async function processMessage(message: any): Promise<void> {
 
   // Enviar mensagem
   try {
-    const sendResult = await sendTextMessage({
-      to: message.phone,
-      text: responseText
-    })
+    const sendResult = useTemplate && renderedTemplate
+      ? await sendTemplateMessage(
+          {
+            to: message.phone,
+            templateNameOrId: renderedTemplate.templateNameOrId,
+            language: renderedTemplate.language,
+            components: renderedTemplate.components
+          },
+          {
+            accessToken: whatsappConfig.accessToken,
+            phoneNumberId: whatsappConfig.phoneNumberId
+          }
+        )
+      : await sendTextMessage(
+          {
+            to: message.phone,
+            text: responseText
+          },
+          {
+            accessToken: whatsappConfig.accessToken,
+            phoneNumberId: whatsappConfig.phoneNumberId
+          }
+        )
 
     console.log(
       `[CRON] Message sent: ${sendResult.messageId} to ${message.phone}`

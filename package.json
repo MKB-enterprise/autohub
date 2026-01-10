@@ -18,7 +18,8 @@
     "test:plan": "tsx tests/plan-limits.ts",
     "test:inventory": "tsx tests/inventory-writeoff.ts",
     "test:budget": "tsx tests/budget-signature.ts",
-    "test:integration": "tsx tests/appointment-finance-flow.ts"
+    "test:integration": "tsx tests/appointment-finance-flow.ts",
+    "test:whatsapp": "tsx tests/whatsapp-phase5.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.7.1",
