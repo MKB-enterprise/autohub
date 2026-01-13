@@ -52,8 +52,6 @@ function formatDuration(minutes: number): string {
 
 export default function ServicosPage() {
   const isAuthorized = useRequireBusinessAuth()
-  if (!isAuthorized) return null
-  
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const { data: services = [], isLoading: loading, mutate } = useData<Service[]>('/api/services')
@@ -144,6 +142,8 @@ export default function ServicosPage() {
       setError(err.message)
     }
   })
+
+  if (!isAuthorized) return null
 
   async function handleDelete(serviceId: string) {
     if (!confirm('Tem certeza que deseja remover este serviço?')) {

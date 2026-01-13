@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 
 // GET /api/products
 export async function GET(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, admin)
+    
     const { searchParams } = new URL(request.url)
     const lowStock = searchParams.get('lowStock') === 'true'
 
@@ -31,6 +35,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, admin)
+    
     const body = await request.json()
     const { name, unit, cost, currentStock = 0, minStock = 0, sku } = body
 

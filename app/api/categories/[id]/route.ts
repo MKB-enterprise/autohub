@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/categories/[id]
 export async function GET(
@@ -9,8 +10,12 @@ export async function GET(
 ) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
     const category = await prisma.category.findFirst({
-      where: { id: params.id },
+      where: { id: params.id, businessId },
       include: {
         services: {
           orderBy: { name: 'asc' }
@@ -36,6 +41,9 @@ export async function PATCH(
 ) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
     const body = await request.json()
     const { name, description } = body
 
@@ -45,7 +53,7 @@ export async function PATCH(
 
     if (name) {
       const existing = await prisma.category.findFirst({
-        where: { name, id: { not: params.id } }
+        where: { name, id: { not: params.id }, businessId }
       })
       if (existing) {
         return NextResponse.json({ error: 'Categoria já existe' }, { status: 409 })
@@ -53,7 +61,7 @@ export async function PATCH(
     }
 
     const category = await prisma.category.update({
-      where: { id: params.id },
+      where: { id: params.id, businessId },
       data: {
         ...(name !== undefined && { name: name.trim() }),
         ...(description !== undefined && { description: description?.trim() || null })
@@ -73,8 +81,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireAdmin()
-    const serviceCount = await prisma.service.count({ where: { categoryId: params.id } })
+    const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
+    const serviceCount = await prisma.service.count({ where: { categoryId: params.id, businessId } })
     if (serviceCount > 0) {
       return NextResponse.json(
         { error: 'Não é possível excluir uma categoria com serviços associados' },
@@ -82,7 +94,7 @@ export async function DELETE(
       )
     }
 
-    await prisma.category.delete({ where: { id: params.id } })
+    await prisma.category.delete({ where: { id: params.id, businessId } })
 
     return NextResponse.json({ success: true })
   } catch (error) {

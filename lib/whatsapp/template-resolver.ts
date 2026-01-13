@@ -107,7 +107,7 @@ export async function renderFullTemplate(
 ): Promise<RenderedTemplate> {
   const templateId = await resolveTemplateId(templateKey, businessId)
 
-  const components = []
+  const components: Array<{ type: 'body' | 'header'; parameters: Array<{ type: string; text?: string }> }> = []
 
   // MVP: hardcodear templates, depois via BD
   // Cada template tem seu body text pré-definido na Meta

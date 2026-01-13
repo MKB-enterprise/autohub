@@ -45,10 +45,6 @@ const statusLabels: Record<string, string> = {
 export default function DashboardPage() {
   // Proteger: só business pode acessar
   const isAuthorized = useRequireBusinessAuth()
-  
-  // Bloqueia renderização enquanto valida autorização
-  if (!isAuthorized) return null
-  
   const getTenantPath = useTenantPath()
   
   // SWR para cache e revalidação automática
@@ -59,6 +55,7 @@ export default function DashboardPage() {
   const [hideValues, setHideValues] = useState(false)
   const [rescheduleModal, setRescheduleModal] = useState<string | null>(null)
   const [rescheduleReason, setRescheduleReason] = useState('')
+  const [updatingAppointment, setUpdatingAppointment] = useState<string | null>(null)
   
   // Mostra loading apenas para dados, não para auth
   const loading = loadingStats || loadingAppointments
@@ -83,6 +80,8 @@ export default function DashboardPage() {
     window.localStorage.setItem('dashboard-hide-values', hideValues ? 'true' : 'false')
   }, [hideValues])
 
+  if (!isAuthorized) return null
+
   function formatRevenue(value: number): string {
     if (value >= 1000) {
       return (value / 1000).toFixed(3).replace('.', '.')
@@ -90,39 +89,35 @@ export default function DashboardPage() {
     return value.toFixed(2).replace('.', ',')
   }
 
-
-
-    const [updatingAppointment, setUpdatingAppointment] = useState<string | null>(null)
-
-    const handleStartAppointment = async (appointmentId: string) => {
-      if (updatingAppointment) return
-      setUpdatingAppointment(appointmentId)
-      try {
-        const res = await fetch(`/api/appointments/${appointmentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'IN_PROGRESS' })
-        })
-        if (res.ok) refreshAppointments()
-      } finally {
-        setUpdatingAppointment(null)
-      }
+  const handleStartAppointment = async (appointmentId: string) => {
+    if (updatingAppointment) return
+    setUpdatingAppointment(appointmentId)
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'IN_PROGRESS' })
+      })
+      if (res.ok) refreshAppointments()
+    } finally {
+      setUpdatingAppointment(null)
     }
+  }
 
-    const handleNoShow = async (appointmentId: string) => {
-      if (updatingAppointment) return
-      setUpdatingAppointment(appointmentId)
-      try {
-        const res = await fetch(`/api/appointments/${appointmentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'NO_SHOW' })
-        })
-        if (res.ok) refreshAppointments()
-      } finally {
-        setUpdatingAppointment(null)
-      }
+  const handleNoShow = async (appointmentId: string) => {
+    if (updatingAppointment) return
+    setUpdatingAppointment(appointmentId)
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'NO_SHOW' })
+      })
+      if (res.ok) refreshAppointments()
+    } finally {
+      setUpdatingAppointment(null)
     }
+  }
 
     const handleRequestReschedule = async (appointmentId: string) => {
       if (!rescheduleReason.trim() || updatingAppointment) return

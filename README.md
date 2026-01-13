@@ -1,22 +1,45 @@
-# 🏁 Pit Stop - Agendamento Automotivo
+# 🏁 AutoHub - Sistema de Gestão Automotiva
 
-Sistema completo de controle de agendamentos para estética automotiva, com área do cliente e área administrativa. Desenvolvido com Next.js 14, TypeScript, Prisma e PostgreSQL.
+Sistema completo multi-tenant de controle de agendamentos para estética automotiva, com área do cliente e área administrativa. Desenvolvido com Next.js 14, TypeScript, Prisma e PostgreSQL.
 
 ---
 
 ## 📋 Índice
 
+- [Quick Start](#-quick-start)
 - [Stack Tecnológica](#-stack-tecnológica)
 - [Funcionalidades](#-funcionalidades)
-- [Instalação](#-instalação-e-configuração)
-- [Estrutura do Projeto](#-estrutura-do-projeto)
-- [Sistema de Autenticação](#-sistema-de-autenticação)
-- [Sistema de Confirmação de Agendamentos](#-sistema-de-confirmação-de-agendamentos)
-- [Sistema de Reputação do Cliente](#-sistema-de-reputação-do-cliente)
-- [Grupos de Serviços](#-grupos-de-serviços-exclusividade-mútua)
-- [API Endpoints](#-api-endpoints)
-- [Configurações](#️-configurações)
+- [Instalação Local](#-instalação-local)
+- [Testes](#-testes)
 - [Deploy](#-deploy)
+- [Documentação](#-documentação)
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# 1. Clone e instale
+git clone <repo-url>
+cd autohub
+npm ci
+
+# 2. Configure environment
+cp .env.example .env
+# Edite .env com suas configurações (DATABASE_URL, JWT_SECRET)
+
+# 3. Setup banco de dados
+docker-compose up -d db  # ou use PostgreSQL externo
+npm run db:migrate:deploy
+npm run db:seed  # Dados de exemplo (opcional)
+
+# 4. Inicie aplicação
+npm run dev
+
+# 5. Acesse
+# http://localhost:3000/t/garageauto (tenant de exemplo)
+# Login admin: 11999990000 / admin123
+```
 
 ---
 
@@ -65,66 +88,112 @@ Sistema completo de controle de agendamentos para estética automotiva, com áre
 - ✅ Tolerância de 15 minutos entre agendamentos
 - ✅ Grupos de serviços mutuamente exclusivos
 - ✅ Sistema de reputação configurável
-- ✅ Loading states em todos os botões (anti-spam)
+- ✅ Multi-tenant com isolamento de dados
 
 ---
 
-## 🔧 Instalação e Configuração
+## 🔧 Instalação Local
 
-### 1. Clonar e instalar dependências
+### Pré-requisitos
+
+- Node.js 18+ 
+- PostgreSQL 14+
+- npm ou yarn
+
+### Passos
 
 ```bash
+# 1. Clone o repositório
 git clone <repo-url>
-cd pit-stop
-npm install
-```
+cd autohub
 
-### 2. Configurar variáveis de ambiente
+# 2. Instale dependências
+npm ci
 
-Crie um arquivo `.env`:
+# 3. Configure variáveis de ambiente
+cp .env.example .env
+# Edite .env:
+#  - DATABASE_URL=postgresql://...
+#  - JWT_SECRET=<string-forte-32+chars>
 
-```env
-DATABASE_URL="postgresql://usuario:senha@localhost:5432/pit_stop"
-JWT_SECRET="sua-chave-secreta-super-segura-aqui"
-```
+# 4. Inicie banco de dados (Docker)
+docker-compose up -d db
 
-> Dica: rode `npx prisma db seed` para popular planos (ex.: SIMPLES/PROFISSIONAL/COMPLETO) usados nos testes e nas limitações de produto/IA/WhatsApp.
+# 5. Execute migrações
+npm run db:migrate:deploy
 
-### 3. Configurar o banco de dados
+# 6. Popule dados de exemplo
+npm run db:seed
 
-```bash
-# Criar tabelas
-npx prisma migrate dev
-
-# Gerar Prisma Client
-npx prisma generate
-
-# Popular com dados de exemplo (opcional)
-npx prisma db seed
-```
-
-### 4. Rodar o projeto
-
-```bash
+# 7. Inicie a aplicação
 npm run dev
 ```
 
-Acesse: `http://localhost:3000`
+**Acesse**: `http://localhost:3000/t/garageauto`
 
-### 5. Testes e checagens
+**Credenciais padrão (seed)**:
+- Admin: `11999990000` / `admin123`
+- Cliente: `11988887777` / `cliente123`
+
+---
+
+## 🧪 Testes
 
 ```bash
-# Hardening multi-tenant
-npm run test:tenant
+# Rodar todos os testes
+npm test
 
-# Limite de usuários por plano
-npm run test:plan
+# Testes unitários
+npm run test:unit
 
-# Baixa de estoque em finalização de serviço
-npm run test:inventory
+# Testes de integração
+npm run test:integration
 
-# Assinatura e aprovação de orçamento
-npm run test:budget
+# Testes com coverage
+npm run test:coverage
+
+# CI mode
+npm run test:ci
+
+# Testes legacy específicos
+npm run test:legacy:tenant    # Multi-tenant isolation
+npm run test:legacy:plan      # Plan limits
+npm run test:legacy:inventory # Stock write-off
+npm run test:legacy:budget    # Budget signature
+```
+
+---
+
+## 📦 Build e Deploy
+
+```bash
+# TypeCheck
+npm run typecheck
+
+# Lint
+npm run lint
+
+# Build produção
+npm run build
+
+# Iniciar produção (após build)
+npm start
+```
+
+**Deploy Completo**: Ver [DEPLOY.md](./DEPLOY.md)
+
+---
+
+## 📚 Documentação
+
+| Documento | Descrição |
+|-----------|-----------|
+| [DEPLOY.md](./DEPLOY.md) | Guia completo de deploy em produção |
+| [RUNBOOK.md](./RUNBOOK.md) | Operações, troubleshooting e incidentes |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Arquitetura técnica e fluxos |
+| [.env.example](./.env.example) | Variáveis de ambiente |
+
+---
 
 # Integração completa: agendamento -> baixa de estoque -> financeiro
 npm run test:integration

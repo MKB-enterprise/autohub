@@ -6,7 +6,7 @@
 import { prisma } from '@/lib/db'
 
 export async function getWhatsAppConfig(businessId: string) {
-  return prisma.whatsappConfig.findUnique({
+  return prisma.whatsAppBusinessConfig.findUnique({
     where: { businessId }
   })
 }
@@ -18,7 +18,7 @@ export async function createWhatsAppConfig(
   displayName?: string,
   appSecret?: string
 ) {
-  return prisma.whatsappConfig.create({
+  return prisma.whatsAppBusinessConfig.create({
     data: {
       businessId,
       phoneNumberId,
@@ -40,14 +40,14 @@ export async function updateWhatsAppConfig(
     isActive?: boolean
   }
 ) {
-  return prisma.whatsappConfig.update({
+  return prisma.whatsAppBusinessConfig.update({
     where: { businessId },
     data
   })
 }
 
 export async function deleteWhatsAppConfig(businessId: string) {
-  return prisma.whatsappConfig.delete({
+  return prisma.whatsAppBusinessConfig.delete({
     where: { businessId }
   })
 }

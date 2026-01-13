@@ -104,7 +104,7 @@ export default function PerfilPage() {
     if (user?.id && !hasLoadedProfile.current) {
       loadProfile()
     }
-  }, [authLoading, user?.id, user?.isAdmin])
+  }, [authLoading, user?.id, user?.isAdmin, router, loadProfile])
 
   async function onProfileSubmit(data: ProfileFormData) {
     try {

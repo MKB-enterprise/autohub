@@ -168,6 +168,6 @@ async function runWithAnthropic(params: {
       text: text.trim() || 'Sem resposta no momento.',
       confidence: 0.6
     },
-    costUsd: null
+    costUsd: undefined
   }
 }

@@ -61,10 +61,17 @@ export default function GuidedBooking({ onContinue, onCancel }: GuidedBookingPro
   // Cache global por tenant para evitar refetch repetido em remounts/refresh dev
   const cacheKey = tenant?.slug || 'default'
   const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
-  const servicesCache = (globalThis as any).__guidedServicesCache || new Map<string, { data: Service[]; ts: number }>()
-  const servicesPromises = (globalThis as any).__guidedServicesPromises || new Map<string, Promise<Service[]>>()
-  ;(globalThis as any).__guidedServicesCache = servicesCache
-  ;(globalThis as any).__guidedServicesPromises = servicesPromises
+  const servicesCache = useMemo(() => {
+    const cache = (globalThis as any).__guidedServicesCache || new Map<string, { data: Service[]; ts: number }>()
+    ;(globalThis as any).__guidedServicesCache = cache
+    return cache
+  }, [])
+
+  const servicesPromises = useMemo(() => {
+    const store = (globalThis as any).__guidedServicesPromises || new Map<string, Promise<Service[]>>()
+    ;(globalThis as any).__guidedServicesPromises = store
+    return store
+  }, [])
 
   // Flow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
@@ -130,7 +137,7 @@ export default function GuidedBooking({ onContinue, onCancel }: GuidedBookingPro
       }
     }
     load()
-  }, [tenant?.slug, cacheKey, servicesCache])
+  }, [tenant?.slug, cacheKey, servicesCache, servicesPromises, CACHE_TTL])
 
   // Initialize selection/date/time from URL params when services are available
   useEffect(() => {

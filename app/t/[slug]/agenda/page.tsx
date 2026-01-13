@@ -154,7 +154,7 @@ function AgendaContent() {
           </p>
           {employees.length === 0 && (
             <p className="text-yellow-600 mt-2">
-              ⚠️ Nenhum funcionário cadastrado. Configure na aba "Funcionários" das configurações.
+              ⚠️ Nenhum funcionário cadastrado. Configure na aba &quot;Funcionários&quot; das configurações.
             </p>
           )}
         </div>

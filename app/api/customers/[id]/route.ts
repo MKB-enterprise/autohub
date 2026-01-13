@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/customers/[id] - Buscar cliente com histórico
 export async function GET(
@@ -9,6 +10,13 @@ export async function GET(
 ) {
   try {
     const auth = await requireAuth()
+    await validateTenantAccess(request, auth)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const isSelf = auth.customerId === params.id
     const isAdmin = auth.isAdmin
 
@@ -19,7 +27,10 @@ export async function GET(
     console.log('Is Self:', isSelf)
 
     const customer = await prisma.customer.findFirst({
-      where: { id: params.id },
+      where: { 
+        id: params.id,
+        businessId
+      },
       include: {
         cars: true,
         // Retorna appointments para admin OU para o próprio cliente
@@ -75,6 +86,13 @@ export async function PATCH(
 ) {
   try {
     const auth = await requireAuth()
+    await validateTenantAccess(request, auth)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const isSelf = auth.customerId === params.id
     const isAdmin = auth.isAdmin
 
@@ -91,6 +109,18 @@ export async function PATCH(
         return NextResponse.json({ error: 'Telefone inválido' }, { status: 400 })
       }
       body.phone = normalizedPhone
+    }
+
+    // Verificar se o cliente pertence ao businessId correto
+    const existing = await prisma.customer.findFirst({
+      where: {
+        id: params.id,
+        businessId
+      }
+    })
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 })
     }
 
     const customer = await prisma.customer.update({

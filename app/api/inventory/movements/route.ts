@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { getTenantOptional } from '@/lib/tenant-resolver'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 
 function resolveBusinessId(headers: Headers, fallback?: string) {
   return headers.get('x-business-id') || headers.get('X-Business-Id') || fallback
@@ -13,6 +13,9 @@ export async function GET(request: NextRequest) {
     // Tenta tenant via header; se não tiver, tenta admin
     const tenantCtx = await getTenantOptional(request)
     const admin = tenantCtx ? null : await requireAdmin()
+    if (admin) {
+      await validateTenantAccess(request, admin)
+    }
     const businessId = resolveBusinessId(request.headers, tenantCtx?.tenantId || (admin as any)?.businessId)
 
     if (!businessId) {
@@ -48,6 +51,9 @@ export async function POST(request: NextRequest) {
   try {
     const tenantCtx = await getTenantOptional(request)
     const admin = tenantCtx ? null : await requireAdmin()
+    if (admin) {
+      await validateTenantAccess(request, admin)
+    }
     const businessId = resolveBusinessId(request.headers, tenantCtx?.tenantId || (admin as any)?.businessId)
 
     if (!businessId) {

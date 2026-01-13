@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 
 // GET /api/services/[id]
 export async function GET(
@@ -9,6 +9,10 @@ export async function GET(
 ) {
   try {
     const admin = await requireAdmin()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, admin)
+    
     const service = await prisma.service.findFirst({
       where: { id: params.id },
       include: {
@@ -43,6 +47,10 @@ export async function PATCH(
 ) {
   try {
     const admin = await requireAdmin()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, admin)
+    
     const body = await request.json()
     const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId, products } = body
 
@@ -117,7 +125,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, admin)
+    
     // Verificar se está sendo usado em agendamentos
     const appointmentServices = await prisma.appointmentService.count({
       where: {

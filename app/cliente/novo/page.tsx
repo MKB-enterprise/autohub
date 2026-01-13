@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
@@ -74,15 +74,7 @@ export default function NovoAgendamentoPage() {
   useRequireAuth('customer')
 
   // Redirecionar admins para a agenda
-  useEffect(() => {
-    if (!authLoading && user?.isAdmin) {
-      router.push('/agenda')
-    } else if (user) {
-      loadData()
-    }
-  }, [user, authLoading, router])
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [customerRes, reputationRes] = await Promise.all([
@@ -110,7 +102,15 @@ export default function NovoAgendamentoPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!authLoading && user?.isAdmin) {
+      router.push('/agenda')
+    } else if (user) {
+      loadData()
+    }
+  }, [user, authLoading, router, loadData])
 
   async function handleCarRegistrationSuccess() {
     setShowNewCarModal(false)

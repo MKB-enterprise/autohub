@@ -17,7 +17,8 @@ export const whatsappTriageCapability: AICapabilityHandler = {
     params: Record<string, unknown>,
     context: AIContext
   ): Promise<AIRunOutput> {
-    const { text = '', conversationHistory = [] } = params as WhatsAppTriageParams
+    const text = typeof params.text === 'string' ? params.text : ''
+    const conversationHistory = Array.isArray(params.conversationHistory) ? params.conversationHistory : []
     const lowerText = text.toLowerCase().trim()
 
     if (!lowerText) {

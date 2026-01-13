@@ -5,13 +5,18 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const businessId = req.headers.get('x-business-id')
-    if (!businessId) {
-      return NextResponse.json({ error: 'Business ID não fornecido' }, { status: 400 })
+    const admin = await requireAdmin();
+    await validateTenantAccess(request, admin);
+    const { context } = await resolveTenantFromRequest(request);
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
     }
+    const businessId: string = context.tenantId;
 
     const templates = await prisma.serviceProductUsageTemplate.findMany({
       where: { businessId },
@@ -37,14 +42,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const businessId = req.headers.get('x-business-id')
-    if (!businessId) {
-      return NextResponse.json({ error: 'Business ID não fornecido' }, { status: 400 })
+    const admin = await requireAdmin();
+    await validateTenantAccess(request, admin);
+    const { context } = await resolveTenantFromRequest(request);
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
     }
+    const businessId: string = context.tenantId;
 
-    const body = await req.json()
+    const body = await request.json();
     const { serviceId, vehicleType, recipeId, quantityMl } = body
 
     if (!serviceId || !vehicleType || !recipeId || !quantityMl) {

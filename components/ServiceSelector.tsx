@@ -128,7 +128,7 @@ export function ServiceSelector({
                   </p>
                   {disabled && conflictingName && (
                     <p className="text-xs text-amber-400 flex items-center gap-1">
-                      <span>🔒</span> Indisponível - você já selecionou "{conflictingName}"
+                      <span>🔒</span> Indisponível - você já selecionou &quot;{conflictingName}&quot;
                     </p>
                   )}
                 </div>

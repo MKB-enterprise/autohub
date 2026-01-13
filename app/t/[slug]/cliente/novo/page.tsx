@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
@@ -84,18 +84,7 @@ export default function NovoAgendamentoPage() {
   useRequireAuth('customer')
 
   // Redirecionar admins para a agenda
-  useEffect(() => {
-    if (!authLoading && user?.isAdmin) {
-      router.push(getTenantPath('agenda'))
-      return
-    }
-    if (!authLoading && user && !loadStartedRef.current) {
-      loadStartedRef.current = true
-      loadData()
-    }
-  }, [authLoading, user?.id, router, getTenantPath])
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const slug = getTenantSlugFromUrl()
@@ -151,7 +140,18 @@ export default function NovoAgendamentoPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id, reputationSettings])
+
+  useEffect(() => {
+    if (!authLoading && user?.isAdmin) {
+      router.push(getTenantPath('agenda'))
+      return
+    }
+    if (!authLoading && user && !loadStartedRef.current) {
+      loadStartedRef.current = true
+      loadData()
+    }
+  }, [authLoading, user, router, getTenantPath, loadData])
 
   async function handleCarRegistrationSuccess() {
     setShowNewCarModal(false)

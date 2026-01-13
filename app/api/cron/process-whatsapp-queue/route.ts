@@ -132,7 +132,7 @@ async function processMessage(message: any): Promise<void> {
   }
 
   // Buscar config do business
-  const whatsappConfig = await prisma.whatsappConfig.findUnique({
+  const whatsappConfig = await prisma.whatsAppBusinessConfig.findUnique({
     where: { businessId }
   })
 

@@ -251,7 +251,7 @@ function ProductsView() {
         <div className="text-center py-12 text-gray-500">
           <Package className="w-16 h-16 mx-auto mb-4 text-gray-700" />
           <p className="text-gray-300">Nenhum produto cadastrado ainda</p>
-          <p className="text-sm mt-2 text-gray-400">Clique em "Novo Produto" para começar</p>
+          <p className="text-sm mt-2 text-gray-400">Clique em &quot;Novo Produto&quot; para começar</p>
         </div>
       )}
 
@@ -1184,7 +1184,7 @@ function TemplatesView() {
         <div className="text-center py-12 text-gray-500">
           <AlertTriangle className="w-16 h-16 mx-auto mb-4 text-gray-700" />
           <p className="text-gray-300">Nenhum template configurado ainda</p>
-          <p className="text-sm mt-2 text-gray-400">Clique em "Novo Template" para definir consumos padrão</p>
+          <p className="text-sm mt-2 text-gray-400">Clique em &quot;Novo Template&quot; para definir consumos padrão</p>
         </div>
       )}
 
@@ -1258,7 +1258,7 @@ function TemplatesView() {
               <div className="bg-gray-800/60 border border-gray-700 rounded p-3 text-sm text-gray-300">
                 <p>
                   <strong>Como funciona:</strong> Quando um {form.serviceId ? getServiceName(form.serviceId) : 'serviço'} for realizado em um {form.vehicleType || 'veículo'}, 
-                  o sistema deduzirá automaticamente {form.quantityMl || '?'} ml da diluição "{recipes.find(r => r.id === form.recipeId)?.name || '?'}" do estoque.
+                  o sistema deduzirá automaticamente {form.quantityMl || '?'} ml da diluição &quot;{recipes.find(r => r.id === form.recipeId)?.name || '?'}&quot; do estoque.
                 </p>
               </div>
             </div>

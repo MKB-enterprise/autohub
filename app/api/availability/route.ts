@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAvailableSlots, calculateTotalDuration, calculateTotalPrice, suggestNextAvailableSlots, getAvailableSlotsForDuration } from '@/lib/availability'
 import { format } from 'date-fns'
-import { getCurrentUser } from '@/lib/auth'
+import { getCurrentUser, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/availability?date=YYYY-MM-DD&durationMinutes=XX&serviceIds=id1,id2
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (user) {
+      await validateTenantAccess(request, user)
+    }
+    
     const searchParams = request.nextUrl.searchParams
     const date = searchParams.get('date')
     const durationMinutes = searchParams.get('durationMinutes')
@@ -29,8 +35,8 @@ export async function GET(request: NextRequest) {
     const targetDate = new Date(year, month - 1, day, 12, 0, 0) // Meio-dia para evitar problemas de timezone
     console.log('Data alvo:', targetDate, 'ISO:', targetDate.toISOString())
 
-    const user = await getCurrentUser()
-    const businessId = user?.businessId
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = user?.businessId || context?.tenantId
 
     let availableSlots: Date[] = []
     if (serviceIds.length > 0) {

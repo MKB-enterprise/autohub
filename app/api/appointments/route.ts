@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateAppointmentSlot, calculateTotalPrice } from '@/lib/availability'
-import { requireAdmin, requireAuth } from '@/lib/auth'
+import { requireAdmin, requireAuth, validateTenantAccess } from '@/lib/auth'
 import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/appointments - Listar agendamentos
@@ -9,6 +9,9 @@ export async function GET(request: NextRequest) {
   try {
     // Somente administradores podem listar todos os agendamentos
     const auth = await requireAdmin()
+
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, auth)
 
     const { searchParams } = new URL(request.url)
     const date = searchParams.get('date')

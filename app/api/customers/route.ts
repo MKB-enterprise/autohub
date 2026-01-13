@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, validateTenantAccess } from '@/lib/auth'
 
 // GET /api/customers - Listar clientes
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireAuth()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, auth)
+    
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search')
 

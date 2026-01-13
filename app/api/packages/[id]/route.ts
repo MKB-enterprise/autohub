@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/packages/[id]
 export async function GET(
@@ -8,8 +9,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const pkg = await prisma.servicePackage.findUnique({
-      where: { id: params.id },
+    const { context } = await resolveTenantFromRequest(request)
+    const pkg = await prisma.servicePackage.findFirst({
+      where: { id: params.id, businessId: context?.tenantId },
       include: {
         services: {
           include: {
@@ -54,6 +56,7 @@ export async function PATCH(
 ) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
     const body = await request.json()
     const { name, description, discountPercent, serviceIds, isActive } = body
 
@@ -66,10 +69,13 @@ export async function PATCH(
 
     // Se está atualizando serviços, validar
     if (serviceIds) {
+      const { context } = await resolveTenantFromRequest(request)
+      const businessId = context?.tenantId || (admin as any).businessId
+
       const services = await prisma.service.findMany({
         where: {
           id: { in: serviceIds },
-          businessId: (admin as any).businessId
+          businessId
         }
       })
 
@@ -86,8 +92,9 @@ export async function PATCH(
       })
     }
 
+    const { context } = await resolveTenantFromRequest(request)
     const pkg = await prisma.servicePackage.update({
-      where: { id: params.id },
+      where: { id: params.id, businessId: context?.tenantId || (admin as any).businessId },
       data: {
         ...(name && { name }),
         ...(description !== undefined && { description }),
@@ -123,10 +130,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireAdmin()
+    const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
 
     await prisma.servicePackage.delete({
-      where: { id: params.id }
+      where: { id: params.id, businessId: context?.tenantId || (admin as any).businessId }
     })
 
     return NextResponse.json({ success: true })

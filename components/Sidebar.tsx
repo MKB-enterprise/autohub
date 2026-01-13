@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/AuthContext'
 import { useNavigation } from '@/lib/NavigationContext'
 import { useTenantPath } from '@/lib/tenant-path'
+import { useTenant } from '@/lib/TenantContext'
 import Image from 'next/image'
 
 const adminMenuItems = [
@@ -31,6 +32,7 @@ function Sidebar() {
   const { user, business, logout } = useAuth()
   const { startNavigation } = useNavigation()
   const getTenantPath = useTenantPath()
+  const { tenant, settings } = useTenant()
   const [loggingOut, setLoggingOut] = useState(false)
 
   // Aceita user (customer) ou business
@@ -43,6 +45,15 @@ function Sidebar() {
   // Dados de exibição
   const displayName = business?.name || user?.name || 'Usuário'
   const displayLabel = business ? 'Negócio' : (user?.isAdmin ? 'Administrador' : 'Cliente')
+  const branding = settings?.branding
+  const tenantDisplay = branding?.displayName || tenant?.name || 'AutoHub'
+  const tenantLogo = !isAdmin ? branding?.logoUrl : '/autohub-logo.png'
+  const tenantInitials = tenantDisplay
+    .split(' ')
+    .map((p) => p.trim()[0])
+    .filter(Boolean)
+    .join('')
+    .slice(0, 2)
 
   const handleNavigate = () => {
     startNavigation()
@@ -63,7 +74,19 @@ function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-gray-800 flex items-center justify-center">
         <Link href={getTenantPath(isAdmin ? 'dashboard' : 'cliente')} className="flex items-center justify-center">
-          <Image src="/autohub-logo.png" alt="AutoHub" width={140} height={50} className="max-h-10 object-contain" />
+          {tenantLogo ? (
+            <Image
+              src={tenantLogo}
+              alt={tenantDisplay}
+              width={140}
+              height={50}
+              className="max-h-10 object-contain"
+            />
+          ) : (
+            <div className="px-4 py-2 rounded-lg bg-gray-800 text-white font-semibold text-sm">
+              {tenantInitials}
+            </div>
+          )}
         </Link>
       </div>
 

@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/settings - Buscar configurações
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    let settings = await prisma.settings.findFirst()
+    const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
+    let settings = await prisma.businessSettings.findUnique({
+      where: { businessId }
+    })
 
     // Se não existir, criar com valores padrão
     if (!settings) {
-      settings = await prisma.settings.create({
+      settings = await prisma.businessSettings.create({
         data: {
+          businessId,
           openingTimeWeekday: '08:00',
           closingTimeWeekday: '18:00',
           slotIntervalMinutes: 15,
@@ -38,6 +51,14 @@ export async function GET() {
 // PATCH /api/settings - Atualizar configurações
 export async function PATCH(request: NextRequest) {
   try {
+    const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const body = await request.json()
     const { 
       openingTimeWeekday, 
@@ -76,13 +97,15 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Buscar configuração existente
-    const existingSettings = await prisma.settings.findFirst()
+    const existingSettings = await prisma.businessSettings.findUnique({
+      where: { businessId }
+    })
 
     let settings
     if (existingSettings) {
       // Atualizar - só inclui campos que não são null/undefined
-      settings = await prisma.settings.update({
-        where: { id: existingSettings.id },
+      settings = await prisma.businessSettings.update({
+        where: { businessId },
         data: {
           ...(openingTimeWeekday && { openingTimeWeekday }),
           ...(closingTimeWeekday && { closingTimeWeekday }),
@@ -99,8 +122,9 @@ export async function PATCH(request: NextRequest) {
       })
     } else {
       // Criar
-      settings = await prisma.settings.create({
+      settings = await prisma.businessSettings.create({
         data: {
+          businessId,
           openingTimeWeekday: openingTimeWeekday || '08:00',
           closingTimeWeekday: closingTimeWeekday || '18:00',
           slotIntervalMinutes: slotIntervalMinutes || 15,

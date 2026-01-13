@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/finance/accounts
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const accounts = await prisma.financialAccount.findMany({
-      where: { businessId: (admin as any).businessId },
+      where: { businessId },
       orderBy: { name: 'asc' }
     })
     return NextResponse.json(accounts)
@@ -21,6 +29,13 @@ export async function GET(_request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const body = await request.json()
     const { name, type } = body
 
@@ -28,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     const account = await prisma.financialAccount.create({
       data: {
-        businessId: (admin as any).businessId,
+        businessId,
         name,
         type,
       }

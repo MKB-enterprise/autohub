@@ -228,6 +228,12 @@ export default function NovoAgendamentoPage() {
     onOptimistic: () => {
       // Não navegar ainda; aguardar sucesso para evitar cache antigo
       setError(null)
+      
+      const form = document.querySelector('form') as HTMLFormElement | null
+      if (!form) return
+      
+      const customerId = (form.elements.namedItem('customerId') as HTMLInputElement)?.value
+      return { customerId }
     },
     onAsync: async () => {
       const form = document.querySelector('form') as HTMLFormElement | null
@@ -269,8 +275,6 @@ export default function NovoAgendamentoPage() {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Erro ao criar agendamento')
       }
-
-      return { customerId }
     },
     onSuccess: (result) => {
       const cid = result?.customerId

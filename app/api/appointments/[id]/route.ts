@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { validateAppointmentSlot, calculateTotalPrice } from '@/lib/availability'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, validateTenantAccess } from '@/lib/auth'
 
 // GET /api/appointments/[id] - Buscar agendamento específico
 export async function GET(
@@ -9,6 +9,10 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    // ⚠️ Validar que usuário é autenticado e pertence ao tenant
+    const auth = await requireAuth()
+    await validateTenantAccess(request, auth)
+    
     const appointment = await prisma.appointment.findUnique({
       where: { id: params.id },
       include: {
@@ -365,6 +369,10 @@ export async function DELETE(
 ) {
   try {
     const auth = await requireAuth()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, auth)
+    
     if (!auth.isAdmin) {
       return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }

@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 async function ensureOwnership(id: string, businessId: string) {
   const template = await prisma.serviceProductUsageTemplate.findUnique({
@@ -17,12 +19,15 @@ async function ensureOwnership(id: string, businessId: string) {
   return true
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const businessId = req.headers.get('x-business-id')
-    if (!businessId) {
-      return NextResponse.json({ error: 'Business ID não fornecido' }, { status: 400 })
+    const admin = await requireAdmin();
+    await validateTenantAccess(request, admin);
+    const { context } = await resolveTenantFromRequest(request);
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
     }
+    const businessId: string = context.tenantId;
 
     const id = params.id
     if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
@@ -30,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const owns = await ensureOwnership(id, businessId)
     if (!owns) return NextResponse.json({ error: 'Template não encontrado' }, { status: 404 })
 
-    const body = await req.json()
+    const body = await request.json()
 
     const template = await prisma.serviceProductUsageTemplate.update({
       where: { id },
@@ -59,12 +64,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const businessId = req.headers.get('x-business-id')
-    if (!businessId) {
-      return NextResponse.json({ error: 'Business ID não fornecido' }, { status: 400 })
+    const admin = await requireAdmin();
+    await validateTenantAccess(request, admin);
+    const { context } = await resolveTenantFromRequest(request);
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
     }
+    const businessId: string = context.tenantId;
 
     const id = params.id
     if (!id) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })

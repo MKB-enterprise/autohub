@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/products/[id]
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const product = await prisma.product.findUnique({
-      where: { id: params.id },
+    const { context } = await resolveTenantFromRequest(request)
+    const product = await prisma.product.findFirst({
+      where: { id: params.id, businessId: context?.tenantId },
       include: {
         movements: { orderBy: { createdAt: 'desc' }, take: 10 }
       }
@@ -23,14 +25,17 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
     const body = await request.json()
     const { name, unit, cost, minStock, isActive } = body
 
-    const existing = await prisma.product.findFirst({ where: { id: params.id, businessId: (admin as any).businessId } })
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+    const existing = await prisma.product.findFirst({ where: { id: params.id, businessId } })
     if (!existing) return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 })
 
     const product = await prisma.product.update({
-      where: { id: params.id },
+      where: { id: params.id, businessId },
       data: {
         name,
         unit,
@@ -48,9 +53,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 // DELETE /api/products/[id]
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const deleted = await prisma.product.delete({ where: { id: params.id } })
+    const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
+    const deleted = await prisma.product.delete({ where: { id: params.id, businessId } })
     if (!deleted) return NextResponse.json({ error: 'Produto não encontrado' }, { status: 404 })
     return NextResponse.json({ ok: true })
   } catch (error) {

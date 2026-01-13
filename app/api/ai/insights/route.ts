@@ -1,14 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 import { assertIaAllowed } from '@/lib/plan'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // POST /api/ai/insights
 export async function POST(request: NextRequest) {
   const started = Date.now()
   try {
     const admin = await requireAdmin()
-    const businessId = (admin as any).businessId
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     await assertIaAllowed(businessId)
 
     const body = await request.json()

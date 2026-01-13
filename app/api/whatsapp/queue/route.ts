@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 import { assertWhatsAppAllowed } from '@/lib/plan'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/whatsapp/queue
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const queue = await prisma.whatsAppMessageQueue.findMany({
-      where: { businessId: (admin as any).businessId },
+      where: { businessId },
       orderBy: { createdAt: 'desc' },
       take: 50
     })
@@ -23,7 +31,13 @@ export async function GET(_request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
-    const businessId = (admin as any).businessId
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     await assertWhatsAppAllowed(businessId)
 
     const body = await request.json()

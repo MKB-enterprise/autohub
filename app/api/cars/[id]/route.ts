@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/cars/[id]
 export async function GET(
@@ -9,8 +10,18 @@ export async function GET(
 ) {
   try {
     const auth = await requireAuth()
-    const car = await prisma.car.findUnique({
-      where: { id: params.id },
+    await validateTenantAccess(request, auth)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
+    const car = await prisma.car.findFirst({
+      where: { 
+        id: params.id,
+        businessId
+      },
       include: {
         customer: true
       }
@@ -21,10 +32,6 @@ export async function GET(
         { error: 'Carro não encontrado' },
         { status: 404 }
       )
-    }
-
-    if (car && (car as any).businessId && (car as any).businessId !== (auth as any).businessId) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (!auth.isAdmin && car.customerId !== auth.customerId) {
@@ -48,20 +55,26 @@ export async function PATCH(
 ) {
   try {
     const auth = await requireAuth()
+    await validateTenantAccess(request, auth)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const body = await request.json()
     const { plate, model, color, notes, year, vehicleType } = body
 
-    const existing = await prisma.car.findUnique({
-      where: { id: params.id },
+    const existing = await prisma.car.findFirst({
+      where: { 
+        id: params.id,
+        businessId
+      },
       select: { customerId: true, businessId: true }
     })
 
     if (!existing) {
       return NextResponse.json({ error: 'Carro não encontrado' }, { status: 404 })
-    }
-
-    if ((existing as any).businessId !== (auth as any).businessId) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (!auth.isAdmin && existing.customerId !== auth.customerId) {
@@ -108,17 +121,23 @@ export async function DELETE(
 ) {
   try {
     const auth = await requireAuth()
-    const existing = await prisma.car.findUnique({
-      where: { id: params.id },
+    await validateTenantAccess(request, auth)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
+    const existing = await prisma.car.findFirst({
+      where: { 
+        id: params.id,
+        businessId
+      },
       select: { customerId: true, businessId: true }
     })
 
     if (!existing) {
       return NextResponse.json({ error: 'Carro não encontrado' }, { status: 404 })
-    }
-
-    if ((existing as any).businessId !== (auth as any).businessId) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
     }
 
     if (!auth.isAdmin && existing.customerId !== auth.customerId) {

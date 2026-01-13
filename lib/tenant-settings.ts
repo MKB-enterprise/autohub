@@ -16,6 +16,12 @@ export interface BrandingConfig {
   } | null
   theme: 'light' | 'dark'
   footerText: string | null
+  colors?: {
+    primary?: string
+    secondary?: string
+    background?: string
+    text?: string
+  }
 }
 
 export interface HoursConfig {

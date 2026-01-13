@@ -24,7 +24,7 @@ export const faqTriageCapability: AICapabilityHandler = {
     return `Pergunta do cliente: "${text}"`
   },
   async run(params: Record<string, unknown>, context: AIContext): Promise<AIRunOutput> {
-    const { text = '' } = params as FaqTriageParams
+    const text = typeof params.text === 'string' ? params.text : ''
     const lowerText = text.toLowerCase().trim()
 
     if (!lowerText) {

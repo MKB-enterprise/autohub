@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { useAuth } from '@/lib/AuthContext'
 import { useTenant } from '@/lib/TenantContext'
 import { withTenantHeaders } from '@/lib/tenant-client'
@@ -29,8 +30,6 @@ type TabType = 'branding' | 'hours' | 'capacity' | 'cards' | 'contact' | 'notifi
 
 export default function TenantSettingsPage() {
   const isAuthorized = useRequireBusinessAuth()
-  if (!isAuthorized) return null
-  
   const router = useRouter()
   const { user, business, loading: authLoading } = useAuth()
   const { tenant, settings, loading, error: tenantError, refreshSettings } = useTenant()
@@ -152,6 +151,8 @@ export default function TenantSettingsPage() {
 
     initFromSettings()
   }, [tenant?.slug, settings])
+
+  if (!isAuthorized) return null
 
   async function handleSave(section: TabType, data: any) {
     try {
@@ -357,6 +358,49 @@ function BrandingSection({
   onSave: (section: TabType, data: any) => void
   saving: boolean
 }) {
+  const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  async function handleLogoUpload(file?: File | null) {
+    if (!file) return
+    setUploadError(null)
+
+    // Validações rápidas no cliente
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Envie uma imagem (PNG, SVG ou JPG).')
+      return
+    }
+    if (file.size > 1_000_000) {
+      setUploadError('Tamanho máximo de 1MB.')
+      return
+    }
+
+    try {
+      setUploadingLogo(true)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const resp = await fetch('/api/tenant/branding/logo', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}))
+        throw new Error(err.error || 'Falha ao enviar logo')
+      }
+
+      const result = await resp.json()
+      if (result?.url) {
+        onChange({ ...data, logoUrl: result.url })
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Erro ao enviar logo')
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
   return (
     <Card>
       <div className="space-y-4">
@@ -372,27 +416,54 @@ function BrandingSection({
         <div>
           <label className="block text-sm font-medium mb-2">Logo da Empresa</label>
           <div className="space-y-3">
-            <Input
-              value={data.logoUrl || ''}
-              onChange={(e) => onChange({ ...data, logoUrl: e.target.value })}
-              placeholder="https://exemplo.com/logo.png"
-            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input
+                value={data.logoUrl || ''}
+                onChange={(e) => onChange({ ...data, logoUrl: e.target.value })}
+                placeholder="https://cdn.exemplo.com/logo.png"
+              />
+              <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-700 text-sm cursor-pointer hover:bg-gray-800">
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/svg+xml"
+                  className="hidden"
+                  onChange={(e) => handleLogoUpload(e.target.files?.[0])}
+                />
+                {uploadingLogo ? 'Enviando...' : 'Enviar arquivo'}
+              </label>
+            </div>
+            {uploadError && <p className="text-xs text-red-400">{uploadError}</p>}
             <div className="bg-gray-800 p-4 rounded-lg space-y-2">
               <p className="text-xs font-medium text-gray-300">📐 Especificações Técnicas:</p>
               <ul className="text-xs text-gray-400 space-y-1 ml-4">
                 <li>• <strong>Formato:</strong> PNG ou SVG (transparente recomendado)</li>
                 <li>• <strong>Dimensões:</strong> Mínimo 200x50px, máximo 400x100px</li>
                 <li>• <strong>Proporção:</strong> Horizontal (4:1 ou 3:1 ideal)</li>
-                <li>• <strong>Tamanho:</strong> Máximo 500KB</li>
+                <li>• <strong>Tamanho:</strong> Máximo 1MB</li>
                 <li>• <strong>Fundo:</strong> Transparente para melhor adaptação</li>
               </ul>
               {data.logoUrl && (
                 <div className="mt-3 pt-3 border-t border-gray-700">
                   <p className="text-xs font-medium text-gray-300 mb-2">Preview:</p>
                   <div className="bg-gray-900 p-3 rounded flex items-center justify-center">
-                    <img src={data.logoUrl} alt="Logo preview" className="max-h-12 max-w-full object-contain" onError={(e) => {
-                      e.currentTarget.style.display = 'none'
-                    }} />
+                    <Image
+                      src={data.logoUrl}
+                      alt="Logo preview"
+                      width={400}
+                      height={120}
+                      className="max-h-12 max-w-full object-contain w-auto h-auto"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement
+                        target.style.display = 'none'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onChange({ ...data, logoUrl: undefined })}
+                      className="ml-3 text-xs text-red-400 hover:text-red-300"
+                    >
+                      Remover
+                    </button>
                   </div>
                 </div>
               )}
