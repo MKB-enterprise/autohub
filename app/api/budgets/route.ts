@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin, requireAuth } from '@/lib/auth'
+import { requireAdmin, requireAuth, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 import { checkMonthlyBudgetQuota } from '@/lib/plan'
 import { randomUUID } from 'crypto'
 
@@ -8,10 +9,18 @@ import { randomUUID } from 'crypto'
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth()
+    await validateTenantAccess(request, user)
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || undefined
 
-    const where: any = { businessId: (user as any).businessId }
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (user as any).businessId
+
+    if (!businessId) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 403 })
+    }
+
+    const where: any = { businessId }
     if (!user.isAdmin) {
       where.customerId = user.customerId
     }
@@ -37,6 +46,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
+    if (!businessId) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 403 })
+    }
     const body = await request.json()
     const { customerId, items, expiresAt, notes, status } = body
 
@@ -44,7 +60,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cliente e itens são obrigatórios' }, { status: 400 })
     }
 
-    await checkMonthlyBudgetQuota((admin as any).businessId)
+    await checkMonthlyBudgetQuota(businessId)
 
     let total = 0
     const normalizedItems = items.map((item: any) => {
@@ -64,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     const budget = await prisma.budget.create({
       data: {
-        businessId: (admin as any).businessId,
+        businessId,
         customerId,
         status: status || 'SENT',
         total,

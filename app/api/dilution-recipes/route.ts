@@ -9,19 +9,20 @@ import {
   createDilutionRecipe,
   listDilutionRecipes,
 } from '@/lib/services/dilution-service';
+import { requireAdmin, validateTenantAccess } from '@/lib/auth';
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver';
 
-export async function GET(req: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const businessId = req.headers.get('x-business-id');
-    
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'Business ID não fornecido' },
-        { status: 400 }
-      );
+    const admin = await requireAdmin();
+    await validateTenantAccess(request, admin);
+    const { context } = await resolveTenantFromRequest(request);
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
     }
+    const businessId: string = context.tenantId;
 
-    const { searchParams } = new URL(req.url);
+    const { searchParams } = new URL(request.url);
     const productId = searchParams.get('productId');
     const isActive = searchParams.get('isActive');
 
@@ -47,18 +48,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const businessId = req.headers.get('x-business-id');
-    
-    if (!businessId) {
-      return NextResponse.json(
-        { error: 'Business ID não fornecido' },
-        { status: 400 }
-      );
+    const admin = await requireAdmin();
+    await validateTenantAccess(request, admin);
+    const { context } = await resolveTenantFromRequest(request);
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
     }
+    const businessId: string = context.tenantId;
 
-    const body = await req.json();
+    const body = await request.json();
     const { productId, name, ratioProduct, ratioWater, targetBottleMl } = body;
 
     if (!productId || !name || !ratioProduct || ratioWater === undefined) {

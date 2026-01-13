@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getCurrentUser, requireAdmin } from '@/lib/auth'
+import { getCurrentUser, requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/categories - Listar categorias
 export async function GET(request: NextRequest) {
@@ -9,6 +10,16 @@ export async function GET(request: NextRequest) {
     const qpBusinessId = searchParams.get('businessId') || undefined
     const user = await getCurrentUser().catch(() => null)
     let businessId = qpBusinessId || (user?.businessId as string | undefined)
+    
+    // ⚠️ Validar tenant se user existe
+    if (user && businessId) {
+      await validateTenantAccess(request, user)
+    } else {
+      // Ao menos resolver tenant da URL
+      const { context } = await resolveTenantFromRequest(request)
+      if (context) businessId = context.tenantId
+    }
+    
     if (!businessId) {
       const biz = await prisma.business.findFirst({ select: { id: true } })
       businessId = biz?.id
@@ -35,6 +46,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    
+    // ⚠️ Validar que token pertence a este tenant
+    await validateTenantAccess(request, admin)
+    
     const body = await request.json()
     const { name, description } = body
 

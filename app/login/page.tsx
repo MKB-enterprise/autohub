@@ -20,18 +20,28 @@ export default function LoginPage() {
   const router = useRouter()
   const { tenant } = useTenant()
 
-  // Se já está logado, redirecionar para dashboard correto
+  // Se já está logado, redirecionar APENAS se tem um tenant válido
   useEffect(() => {
-    if (!authLoading) {
+    if (!authLoading && tenant) {
       if (business) {
-        // Business logado -> redirecionar para dashboard empresarial
-        router.push(withTenant('/dashboard', tenant?.slug))
+        // Business logado com tenant válido
+        router.push(withTenant('/dashboard', tenant.slug))
       } else if (user) {
-        // Cliente logado -> redirecionar para cliente
-        router.push(withTenant('/cliente', tenant?.slug))
+        // Cliente logado
+        router.push(withTenant('/cliente', tenant.slug))
       }
+    } else if (!authLoading && !tenant && (user || business)) {
+      // Tem auth mas não tem tenant resolvido -> login sem tenant, fazer logout
+      console.warn('[LOGIN] Auth without tenant detected - logging out')
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      }).finally(() => {
+        document.cookie = 'auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;'
+        document.cookie = 'tenant_slug=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;'
+      })
     }
-  }, [user, business, authLoading, router, tenant?.slug])
+  }, [user, business, authLoading, tenant, router])
   const [loginMethod, setLoginMethod] = useState<LoginMethod>('phone')
   
   // Phone

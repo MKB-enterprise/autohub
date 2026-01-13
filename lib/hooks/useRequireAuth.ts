@@ -34,6 +34,8 @@ export function useRequireAuth(accessLevel: AccessLevel = 'any') {
     const isCustomer = !!(user && !user.isAdmin)
     const isAuthenticated = isSuperAdmin || isBusinessAdmin || isCustomer
 
+    console.log(`[useRequireAuth] Level: ${accessLevel} | SuperAdmin: ${isSuperAdmin} | Business: ${isBusinessAdmin} | Customer: ${isCustomer} | Tenant: ${tenant.slug}`)
+
     if (!isAuthenticated) {
       const isBusinessRoute = ['/dashboard', '/configuracoes', '/clientes', '/servicos', '/pacotes', '/produtos', '/estoque', '/orcamentos', '/financeiro', '/ia', '/whatsapp'].some(route => 
         typeof window !== 'undefined' && window.location.pathname.includes(route)
@@ -69,10 +71,13 @@ export function useRequireAuth(accessLevel: AccessLevel = 'any') {
     }
 
     if (!hasAccess) {
+      console.log(`[useRequireAuth] NO ACCESS for level ${accessLevel} | Redirecting to login`)
       const loginPath = business 
         ? withTenant('/login/business', tenant?.slug)
         : withTenant('/login', tenant?.slug)
       router.push(loginPath)
+    } else {
+      console.log(`[useRequireAuth] ACCESS GRANTED for level ${accessLevel}`)
     }
   }, [user, business, authLoading, accessLevel, router, tenant?.slug])
 }

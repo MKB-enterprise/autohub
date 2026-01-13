@@ -71,9 +71,12 @@ const repPromises = new Map<string, Promise<any>>()
 const REP_TTL = 5 * 60 * 1000
 
 export default function ClientePage() {
+  // Garante que somente cliente autenticado chega aqui
+  useRequireAuth('customer')
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const getTenantPath = useTenantPath()
+  const [redirected, setRedirected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming')
@@ -90,21 +93,21 @@ export default function ClientePage() {
   })
 
   // SWR para cache e revalidação automática
+  const customerId = !authLoading && user && !user.isAdmin ? user.id : null
+
   const { data: customerData, isLoading, mutate } = useData<{ 
     appointments: Appointment[]
     rating: number
     noShowCount: number
     completedCount: number
   }>(
-    user?.id ? `/api/customers/${user.id}` : null
+    customerId ? `/api/customers/${customerId}` : null,
+    {
+      // Evita revalidar sem necessidade enquanto o usuário navega
+      dedupingInterval: 30000,
+      revalidateIfStale: false,
+    }
   )
-  
-  console.log('=== DEBUG CLIENTE ===')
-  console.log('User ID:', user?.id)
-  console.log('Customer Data:', customerData)
-  console.log('Appointments:', customerData?.appointments)
-  console.log('Is Loading:', isLoading)
-  console.log('====================')
   
   const appointments = customerData?.appointments || []
   const customerRating = Number(customerData?.rating) || 5
@@ -141,14 +144,14 @@ export default function ClientePage() {
     repPromises.set(key, p)
   }, [])
 
-  useRequireAuth('customer')
-
-  // Redirecionar admins para a agenda
+  // Redirecionar admins para a agenda - SÓ UMA VEZ
   useEffect(() => {
-    if (!authLoading && user?.isAdmin) {
+    if (!authLoading && user?.isAdmin && !redirected) {
+      console.log('[ClientePage] Admin detected, redirecting to agenda')
+      setRedirected(true)
       router.push(getTenantPath('agenda'))
     }
-  }, [user, authLoading, router, getTenantPath])
+  }, [user?.isAdmin, authLoading, redirected, router, getTenantPath])
 
   const loadAppointments = useCallback(() => {
     mutate()

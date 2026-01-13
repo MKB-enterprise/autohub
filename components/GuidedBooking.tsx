@@ -44,9 +44,10 @@ const groupMeta: Record<string, { label: string; variant: 'info' | 'success' | '
 
 type GuidedBookingProps = {
   onContinue?: (data: { services: Service[]; date: string; time: string }) => void | Promise<void>
+  onCancel?: () => void
 }
 
-export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
+export default function GuidedBooking({ onContinue, onCancel }: GuidedBookingProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useAuth()
@@ -60,10 +61,17 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   // Cache global por tenant para evitar refetch repetido em remounts/refresh dev
   const cacheKey = tenant?.slug || 'default'
   const CACHE_TTL = 5 * 60 * 1000 // 5 minutos
-  const servicesCache = (globalThis as any).__guidedServicesCache || new Map<string, { data: Service[]; ts: number }>()
-  const servicesPromises = (globalThis as any).__guidedServicesPromises || new Map<string, Promise<Service[]>>()
-  ;(globalThis as any).__guidedServicesCache = servicesCache
-  ;(globalThis as any).__guidedServicesPromises = servicesPromises
+  const servicesCache = useMemo(() => {
+    const cache = (globalThis as any).__guidedServicesCache || new Map<string, { data: Service[]; ts: number }>()
+    ;(globalThis as any).__guidedServicesCache = cache
+    return cache
+  }, [])
+
+  const servicesPromises = useMemo(() => {
+    const store = (globalThis as any).__guidedServicesPromises || new Map<string, Promise<Service[]>>()
+    ;(globalThis as any).__guidedServicesPromises = store
+    return store
+  }, [])
 
   // Flow state
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1)
@@ -129,7 +137,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
       }
     }
     load()
-  }, [tenant?.slug, cacheKey, servicesCache])
+  }, [tenant?.slug, cacheKey, servicesCache, servicesPromises, CACHE_TTL])
 
   // Initialize selection/date/time from URL params when services are available
   useEffect(() => {
@@ -394,7 +402,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
   }
 
   return (
-    <div className="space-y-8 pb-[calc(env(safe-area-inset-bottom)+72px)]">
+    <div className="space-y-8 pb-32 md:pb-20">
       {/* Stepper */}
       <nav className="sticky top-[60px] z-30 bg-gray-950/95 backdrop-blur border border-gray-800/60 rounded-2xl p-6 mb-2 shadow-lg">
         <ol className="flex items-center justify-between relative">
@@ -782,23 +790,37 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
         </section>
       )}
 
-      {/* Sticky footer */}
+      {/* Sticky footer - responsivo e sem sobrepor sidebar */}
       <div
-        className={`fixed inset-x-0 ${user ? 'bottom-[5.5rem]' : 'bottom-0'} md:bottom-0 border-t border-gray-800 bg-gray-900/95 backdrop-blur px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] z-40`}
+        className={`fixed ${user ? 'left-0 md:left-56' : 'left-0'} right-0 bottom-0 border-t border-gray-800 bg-gray-900/98 backdrop-blur-md px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)] md:pb-3 z-[60] md:z-30 shadow-2xl`}
       >
-        <div className="container mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-sm">
-          <div className="flex flex-wrap items-baseline gap-4 md:gap-6 text-white">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-sm">
+          <div className="flex flex-wrap items-baseline gap-3 md:gap-6 text-white">
             <div className="flex items-baseline gap-2">
-              <span className="text-gray-300">Total</span>
-              <span className="text-lg font-bold">R$ {Number(totalPrice).toFixed(2)}</span>
+              <span className="text-gray-300 text-xs md:text-sm">Total</span>
+              <span className="text-xl md:text-lg font-bold text-blue-400">R$ {Number(totalPrice).toFixed(2)}</span>
             </div>
-            <div className="text-gray-300 whitespace-nowrap">Duração estimada: {formatHm(totalDuration || 0)}</div>
+            <div className="text-gray-300 text-xs md:text-sm whitespace-nowrap">Duração estimada: {formatHm(totalDuration || 0)}</div>
           </div>
-          <div className="w-full md:w-auto md:flex-shrink-0">
+          <div className="w-full md:w-auto md:flex-shrink-0 flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 md:flex-initial md:w-auto"
+              onClick={() => {
+                if (onCancel) {
+                  onCancel()
+                } else {
+                  router.back()
+                }
+              }}
+            >
+              Cancelar
+            </Button>
             {currentStep < 3 ? (
               <Button
                 size="sm"
-                className="w-full md:w-auto"
+                className="flex-1 md:flex-initial md:w-auto"
                 disabled={(currentStep === 1 && !canProceed(1)) || (currentStep === 2 && !canProceed(2))}
                 onClick={goNext}
               >
@@ -807,7 +829,7 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
             ) : (
               <Button
                 size="sm"
-                className="w-full md:w-auto"
+                className="flex-1 md:flex-initial md:w-auto"
                 onClick={handleConfirm}
                 disabled={!selectedServices.length || !selectedDate || !time}
               >
@@ -818,25 +840,25 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
         </div>
       </div>
 
-      {/* Selection Drawer */}
+      {/* Selection Drawer - responsivo e sem sobrepor sidebar */}
       {showSelection && selectedServices.length > 0 && (
-        <div className="fixed bottom-32 left-0 right-0 px-4 z-40">
-          <div className="container mx-auto">
-            <div className="rounded-2xl bg-gray-900/95 border border-gray-800 backdrop-blur p-4 shadow-xl shadow-black/40">
+        <div className={`fixed bottom-20 md:bottom-[5.5rem] ${user ? 'left-4 md:left-60' : 'left-4'} right-4 z-[55] md:z-30`}>
+          <div className="max-w-2xl mx-auto">
+            <div className="rounded-2xl bg-gray-900/98 border border-gray-700 backdrop-blur-md p-4 shadow-2xl">
               <div className="flex items-center justify-between mb-3">
-                <div className="text-white font-semibold">Serviços selecionados</div>
+                <div className="text-white font-semibold text-sm md:text-base">Serviços selecionados</div>
                 <Button variant="secondary" size="sm" onClick={() => setShowSelection(false)}>Fechar</Button>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-60 overflow-y-auto">
                 {selectedServices.map(s => (
                   <div key={s.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/60 border border-gray-700">
-                    <div className="flex items-center gap-3">
-                      <Badge variant={getGroupMetaByService(s).variant} className="text-[10px] uppercase tracking-wide">{getGroupMetaByService(s).label}</Badge>
-                      <div className="text-white">{s.name}</div>
+                    <div className="flex items-center gap-2 md:gap-3 flex-1 min-w-0">
+                      <Badge variant={getGroupMetaByService(s).variant} className="text-[10px] uppercase tracking-wide flex-shrink-0">{getGroupMetaByService(s).label}</Badge>
+                      <div className="text-white text-sm truncate">{s.name}</div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-gray-300 text-sm">R$ {Number(s.price).toFixed(2)}</div>
-                      <button className="text-gray-400 hover:text-red-400 transition" onClick={() => removeService(s.id)} aria-label="Remover">
+                    <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
+                      <div className="text-gray-300 text-xs md:text-sm font-medium">R$ {Number(s.price).toFixed(2)}</div>
+                      <button className="text-gray-400 hover:text-red-400 transition p-1" onClick={() => removeService(s.id)} aria-label="Remover">
                         🗑️
                       </button>
                     </div>
@@ -848,12 +870,12 @@ export default function GuidedBooking({ onContinue }: GuidedBookingProps) {
         </div>
       )}
 
-      {/* Undo toast */}
+      {/* Undo toast - responsivo e sem sobrepor sidebar */}
       {lastRemoved && (
-        <div className="fixed bottom-16 right-4">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-900/95 border border-gray-800 shadow-lg">
-            <div className="text-white text-sm">Removido: {lastRemoved.name}</div>
-            <Button size="sm" variant="secondary" onClick={undoRemove}>Desfazer</Button>
+        <div className={`fixed bottom-[5.5rem] md:bottom-20 ${user ? 'left-4 md:left-60' : 'left-4'} right-4 md:right-4 md:left-auto z-[55] md:z-30`}>
+          <div className="max-w-sm mx-auto md:mx-0 md:ml-auto flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-gray-900/98 border border-gray-700 shadow-2xl backdrop-blur-md">
+            <div className="text-white text-xs md:text-sm truncate flex-1">Removido: {lastRemoved.name}</div>
+            <Button size="sm" variant="secondary" onClick={undoRemove} className="flex-shrink-0 text-xs">Desfazer</Button>
           </div>
         </div>
       )}

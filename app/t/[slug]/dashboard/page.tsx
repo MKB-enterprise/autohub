@@ -44,8 +44,7 @@ const statusLabels: Record<string, string> = {
 
 export default function DashboardPage() {
   // Proteger: só business pode acessar
-  useRequireBusinessAuth()
-  
+  const isAuthorized = useRequireBusinessAuth()
   const getTenantPath = useTenantPath()
   
   // SWR para cache e revalidação automática
@@ -56,6 +55,7 @@ export default function DashboardPage() {
   const [hideValues, setHideValues] = useState(false)
   const [rescheduleModal, setRescheduleModal] = useState<string | null>(null)
   const [rescheduleReason, setRescheduleReason] = useState('')
+  const [updatingAppointment, setUpdatingAppointment] = useState<string | null>(null)
   
   // Mostra loading apenas para dados, não para auth
   const loading = loadingStats || loadingAppointments
@@ -80,6 +80,8 @@ export default function DashboardPage() {
     window.localStorage.setItem('dashboard-hide-values', hideValues ? 'true' : 'false')
   }, [hideValues])
 
+  if (!isAuthorized) return null
+
   function formatRevenue(value: number): string {
     if (value >= 1000) {
       return (value / 1000).toFixed(3).replace('.', '.')
@@ -87,39 +89,35 @@ export default function DashboardPage() {
     return value.toFixed(2).replace('.', ',')
   }
 
-
-
-    const [updatingAppointment, setUpdatingAppointment] = useState<string | null>(null)
-
-    const handleStartAppointment = async (appointmentId: string) => {
-      if (updatingAppointment) return
-      setUpdatingAppointment(appointmentId)
-      try {
-        const res = await fetch(`/api/appointments/${appointmentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'IN_PROGRESS' })
-        })
-        if (res.ok) refreshAppointments()
-      } finally {
-        setUpdatingAppointment(null)
-      }
+  const handleStartAppointment = async (appointmentId: string) => {
+    if (updatingAppointment) return
+    setUpdatingAppointment(appointmentId)
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'IN_PROGRESS' })
+      })
+      if (res.ok) refreshAppointments()
+    } finally {
+      setUpdatingAppointment(null)
     }
+  }
 
-    const handleNoShow = async (appointmentId: string) => {
-      if (updatingAppointment) return
-      setUpdatingAppointment(appointmentId)
-      try {
-        const res = await fetch(`/api/appointments/${appointmentId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'NO_SHOW' })
-        })
-        if (res.ok) refreshAppointments()
-      } finally {
-        setUpdatingAppointment(null)
-      }
+  const handleNoShow = async (appointmentId: string) => {
+    if (updatingAppointment) return
+    setUpdatingAppointment(appointmentId)
+    try {
+      const res = await fetch(`/api/appointments/${appointmentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'NO_SHOW' })
+      })
+      if (res.ok) refreshAppointments()
+    } finally {
+      setUpdatingAppointment(null)
     }
+  }
 
     const handleRequestReschedule = async (appointmentId: string) => {
       if (!rescheduleReason.trim() || updatingAppointment) return
@@ -196,7 +194,10 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setHideValues(v => !v)}
-            className="flex items-center gap-2 text-sm text-slate-200 bg-slate-800/60 border border-slate-700/60 rounded-full px-3 py-1.5 hover:border-slate-500/60 hover:text-white transition-colors"
+            disabled={updatingAppointment !== null}
+            className={`flex items-center gap-2 text-sm text-slate-200 bg-slate-800/60 border border-slate-700/60 rounded-full px-3 py-1.5 hover:border-slate-500/60 hover:text-white transition-colors ${
+              updatingAppointment !== null ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
           >
             {hideValues ? (
@@ -338,16 +339,19 @@ export default function DashboardPage() {
                     setRescheduleModal(null)
                     setRescheduleReason('')
                   }}
-                  className="flex-1 px-4 py-2 rounded-lg border border-slate-700 text-slate-300 font-semibold hover:border-slate-600 hover:text-white transition"
+                  disabled={updatingAppointment === rescheduleModal}
+                  className={`flex-1 px-4 py-2 rounded-lg border border-slate-700 text-slate-300 font-semibold hover:border-slate-600 hover:text-white transition ${
+                    updatingAppointment === rescheduleModal ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
                   Cancelar
                 </button>
                 <button
                   onClick={() => handleRequestReschedule(rescheduleModal)}
-                    disabled={!rescheduleReason.trim() || updatingAppointment === rescheduleModal}
+                  disabled={!rescheduleReason.trim() || updatingAppointment === rescheduleModal}
                   className="flex-1 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
                 >
-                    {updatingAppointment === rescheduleModal ? 'Solicitando...' : 'Solicitar'}
+                  {updatingAppointment === rescheduleModal ? 'Solicitando...' : 'Solicitar'}
                 </button>
               </div>
             </div>

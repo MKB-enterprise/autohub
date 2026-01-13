@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/AuthContext'
 import { Button } from './ui/Button'
@@ -11,6 +12,17 @@ export default function Navigation() {
   const { user, loading, logout } = useAuth()
   const { tenant } = useTenant()
   const pathname = usePathname()
+  const [loggingOut, setLoggingOut] = useState(false)
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await logout()
+    } catch (err) {
+      setLoggingOut(false)
+    }
+  }
 
   // Não mostrar nav em páginas públicas
   if (pathname.includes('/login') || pathname.includes('/register')) {
@@ -118,8 +130,8 @@ export default function Navigation() {
           <span className="text-sm text-gray-300 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/20">
             👋 {user.name}
           </span>
-          <Button onClick={() => logout()} variant="danger" size="sm">
-            🚪 Sair
+          <Button onClick={handleLogout} variant="danger" size="sm" disabled={loggingOut}>
+            {loggingOut ? '⏳ Saindo...' : '🚪 Sair'}
           </Button>
         </div>
       </div>

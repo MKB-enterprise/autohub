@@ -6,6 +6,7 @@ import { useTenantPath } from '@/lib/tenant-path'
 import { useForm } from 'react-hook-form'
 import { format } from 'date-fns'
 import { useAuth } from '@/lib/AuthContext'
+import { getTenantSlugFromUrl, withTenantHeaders } from '@/lib/tenant-client'
 import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -18,6 +19,7 @@ import { Modal } from '@/components/ui/Modal'
 import Collapsible from '@/components/ui/Collapsible'
 import { useAsyncAction } from '@/lib/hooks/useAsyncAction'
 import { useOptimisticUpdate } from '@/lib/hooks/useOptimisticUpdate'
+import { mutate as globalMutate } from 'swr'
 
 // Lazy load dos componentes pesados
 const GuidedBooking = lazy(() => import('@/components/GuidedBooking'))
@@ -145,9 +147,11 @@ export default function NovoAgendamentoPage() {
   async function loadInitialData() {
     try {
       setLoading(true)
+      const slug = getTenantSlugFromUrl()
+      
       const [customersRes, servicesRes] = await Promise.all([
-        fetch('/api/customers'),
-        fetch('/api/services?activeOnly=true')
+        fetch('/api/customers', withTenantHeaders({}, slug)),
+        fetch('/api/services?activeOnly=true', withTenantHeaders({}, slug))
       ])
 
       if (!customersRes.ok || !servicesRes.ok) {
@@ -222,8 +226,14 @@ export default function NovoAgendamentoPage() {
 
   const { execute: onSubmit, isLoading: saving } = useOptimisticUpdate({
     onOptimistic: () => {
-      // Navega LOGO para /agenda sem esperar o backend
-      router.push(getTenantPath('agenda'))
+      // Não navegar ainda; aguardar sucesso para evitar cache antigo
+      setError(null)
+      
+      const form = document.querySelector('form') as HTMLFormElement | null
+      if (!form) return
+      
+      const customerId = (form.elements.namedItem('customerId') as HTMLInputElement)?.value
+      return { customerId }
     },
     onAsync: async () => {
       const form = document.querySelector('form') as HTMLFormElement | null
@@ -246,22 +256,35 @@ export default function NovoAgendamentoPage() {
 
       const startDatetime = `${date}T${time}:00`
         
-      const response = await fetch('/api/appointments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId,
-          carId,
-          startDatetime,
-          serviceIds: selectedServices,
-          notes: notes || null
-        })
-      })
+      const slug = getTenantSlugFromUrl()
+      const response = await fetch('/api/appointments', 
+        withTenantHeaders({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerId,
+            carId,
+            startDatetime,
+            serviceIds: selectedServices,
+            notes: notes || null
+          })
+        }, slug)
+      )
 
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Erro ao criar agendamento')
       }
+    },
+    onSuccess: (result) => {
+      const cid = result?.customerId
+      if (cid) {
+        // Força revalidação do cache de agendamentos do cliente
+        globalMutate(`/api/customers/${cid}`)
+      }
+
+      const destination = user?.isAdmin ? getTenantPath('agenda') : getTenantPath('cliente')
+      router.push(destination)
     },
     onError: (err) => {
       setError(err.message)
@@ -279,15 +302,18 @@ export default function NovoAgendamentoPage() {
       if (!formEl) throw new Error('Formulário não encontrado')
       
       const formData = new FormData(formEl)
-      const response = await fetch('/api/customers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.get('name'),
-          phone: formData.get('phone'),
-          notes: formData.get('notes')
-        })
-      })
+      const slug = getTenantSlugFromUrl()
+      const response = await fetch('/api/customers', 
+        withTenantHeaders({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.get('name'),
+            phone: formData.get('phone'),
+            notes: formData.get('notes')
+          })
+        }, slug)
+      )
 
       if (!response.ok) {
         throw new Error('Erro ao criar cliente')
@@ -305,7 +331,8 @@ export default function NovoAgendamentoPage() {
     
     // Buscar os dados atualizados
     try {
-      const customersRes = await fetch('/api/customers')
+      const slug = getTenantSlugFromUrl()
+      const customersRes = await fetch('/api/customers', withTenantHeaders({}, slug))
       if (customersRes.ok) {
         const customersData = await customersRes.json()
         setCustomers(customersData)

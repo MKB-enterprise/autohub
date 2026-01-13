@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, lazy, Suspense } from 'react'
+import Image from 'next/image'
 import { format } from 'date-fns'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/lib/AuthContext'
@@ -28,8 +29,22 @@ export default function TenantHomePage() {
         <div className="flex items-center gap-2">
           {logoUrl ? (
             <>
-              <img src={logoUrl} alt={displayName} className="max-h-[80px] md:max-h-[120px] object-contain md:hidden mb-[14px]" />
-              <img src={logoUrl} alt={displayName} className="max-h-[120px] md:max-h-[160px] object-contain hidden md:block mb-[14px]" />
+              <Image
+                src={logoUrl}
+                alt={displayName}
+                width={240}
+                height={120}
+                className="max-h-[80px] md:max-h-[120px] object-contain md:hidden mb-[14px] w-auto h-auto"
+                priority
+              />
+              <Image
+                src={logoUrl}
+                alt={displayName}
+                width={320}
+                height={160}
+                className="max-h-[120px] md:max-h-[160px] object-contain hidden md:block mb-[14px] w-auto h-auto"
+                priority
+              />
             </>
           ) : (
             <>
@@ -39,8 +54,8 @@ export default function TenantHomePage() {
         </div>
         <div className="flex items-center gap-2 md:gap-3">
           {user ? (
-            <Button size="sm" onClick={() => router.push(withTenant(user.isAdmin ? '/agenda' : '/cliente', slug))}>
-              Painel
+            <Button size="sm" onClick={() => router.push(withTenant('/cliente', slug))}>
+              Meu Painel
             </Button>
           ) : (
             <>

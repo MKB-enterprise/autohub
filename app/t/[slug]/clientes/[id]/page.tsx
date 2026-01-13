@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTenantPath } from '@/lib/tenant-path'
 import { Button } from '@/components/ui/Button'
@@ -63,11 +63,7 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    loadCustomer()
-  }, [params.id])
-
-  async function loadCustomer() {
+  const loadCustomer = useCallback(async () => {
     try {
       setLoading(true)
       const response = await fetch(`/api/customers/${params.id}`)
@@ -83,7 +79,11 @@ export default function CustomerDetailPage({ params }: { params: { id: string } 
     } finally {
       setLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    loadCustomer()
+  }, [loadCustomer])
 
   if (loading) {
     return <Loading />

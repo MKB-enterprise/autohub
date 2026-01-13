@@ -15,6 +15,15 @@ const nextConfig = {
   images: {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60,
+    remotePatterns: process.env.NEXT_PUBLIC_BRAND_ASSET_HOST
+      ? [
+          {
+            protocol: 'https',
+            hostname: process.env.NEXT_PUBLIC_BRAND_ASSET_HOST,
+            pathname: '/**',
+          },
+        ]
+      : [],
   },
   
   // Remover console.log em produção

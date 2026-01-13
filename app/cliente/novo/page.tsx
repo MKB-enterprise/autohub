@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react'
 import { useAuth } from '@/lib/AuthContext'
 import { useRequireAuth } from '@/lib/hooks/useRequireAuth'
 import { useRouter } from 'next/navigation'
@@ -74,15 +74,7 @@ export default function NovoAgendamentoPage() {
   useRequireAuth('customer')
 
   // Redirecionar admins para a agenda
-  useEffect(() => {
-    if (!authLoading && user?.isAdmin) {
-      router.push('/agenda')
-    } else if (user) {
-      loadData()
-    }
-  }, [user, authLoading, router])
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       const [customerRes, reputationRes] = await Promise.all([
@@ -110,7 +102,15 @@ export default function NovoAgendamentoPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (!authLoading && user?.isAdmin) {
+      router.push('/agenda')
+    } else if (user) {
+      loadData()
+    }
+  }, [user, authLoading, router, loadData])
 
   async function handleCarRegistrationSuccess() {
     setShowNewCarModal(false)
@@ -207,7 +207,17 @@ export default function NovoAgendamentoPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">Novo Agendamento</h1>
+      {/* Header com botão de voltar */}
+      <div className="flex items-center gap-3 mb-6">
+        <button
+          onClick={() => router.push('/cliente')}
+          className="flex items-center justify-center w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gray-800 hover:bg-gray-700 active:bg-gray-600 transition-all text-white text-xl shadow-lg"
+          aria-label="Voltar para meus agendamentos"
+        >
+          ←
+        </button>
+        <h1 className="text-2xl md:text-3xl font-bold flex-1">Novo Agendamento</h1>
+      </div>
 
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
@@ -266,6 +276,7 @@ export default function NovoAgendamentoPage() {
       {/* GuidedBooking - Fluxo moderno de agendamento */}
       <GuidedBooking
         onContinue={handleGuidedContinue}
+        onCancel={() => router.push('/cliente')}
       />
 
       {/* Modal Novo Carro */}

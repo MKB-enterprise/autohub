@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAuth, requireAdmin } from '@/lib/auth'
+import { requireAuth, requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 import { validateAppointmentSlot, calculateTotalPrice } from '@/lib/availability'
 
 // GET /api/budgets/[id]
-export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const budget = await prisma.budget.findUnique({
-      where: { id: params.id },
+    const user = await requireAuth()
+    await validateTenantAccess(request, user)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (user as any).businessId
+
+    const budget = await prisma.budget.findFirst({
+      where: { id: params.id, businessId },
       include: {
         items: true,
         signatures: true,
@@ -26,10 +32,14 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
     const body = await request.json()
     const { status, notes, expiresAt, action, carId, serviceIds, startDatetime } = body
 
-    const budget = await prisma.budget.findFirst({ where: { id: params.id, businessId: (admin as any).businessId }, include: { items: true, customer: true } })
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
+    const budget = await prisma.budget.findFirst({ where: { id: params.id, businessId }, include: { items: true, customer: true } })
     if (!budget) return NextResponse.json({ error: 'Orçamento não encontrado' }, { status: 404 })
 
     const data: any = {}
@@ -107,9 +117,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 // DELETE /api/budgets/[id]
-export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    await prisma.budget.delete({ where: { id: params.id } })
+    const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
+    await prisma.budget.delete({ where: { id: params.id, businessId } })
     return NextResponse.json({ ok: true })
   } catch (error) {
     console.error('Erro ao apagar orçamento', error)

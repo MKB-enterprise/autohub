@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { useRouter } from 'next/navigation'
 import { useTenant } from './TenantContext'
 import { withTenant, withTenantHeaders, getTenantSlugFromUrl } from './tenant-client'
+import { clearBrandingCache } from './TenantContext'
 
 interface User {
   id: string
@@ -22,6 +23,7 @@ interface Business {
 interface AuthContextType {
   user: User | null
   business: Business | null
+  tenantSlug?: string
   loading: boolean
   loginCustomer: (email: string, password: string, businessId?: string) => Promise<void>
   registerCustomer: (name: string, email: string, phone: string, password: string, businessId?: string) => Promise<void>
@@ -55,28 +57,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (response.ok) {
         const data = await response.json()
+        const tokenBusinessId = data.business?.id
+        const tenantId = tenant?.tenantId
+        
+        console.log('[AUTH CONTEXT] checkAuth response:', {
+          hasBusiness: !!data.business,
+          hasUser: !!data.user,
+          businessId: tokenBusinessId ? '***' : null,
+          userId: data.user?.id ? '***' : null,
+          tenantId: tenantId ? '***' : null,
+          match: tokenBusinessId && tenantId ? tokenBusinessId === tenantId : 'N/A'
+        })
+        
+        // VALIDAÇÃO CRÍTICA: Se tem business no token, MUST corresponder ao tenant
+        // IMPORTANTE: Clientes (data.user) podem acessar qualquer tenant
+        if (data.business && !data.user && tenantId && tokenBusinessId !== tenantId) {
+          console.error('[AUTH CONTEXT] SECURITY: Business mismatch detected - clearing auth', {
+            tokenBusinessId,
+            tenantId,
+            hasUser: !!data.user,
+            hasBusiness: !!data.business
+          })
+          setUser(null)
+          setBusiness(null)
+          // Não redirecionar aqui, deixar componente lidar
+          return
+        }
         
         if (data.business) {
+          console.log('[AUTH CONTEXT] Setting business auth')
           setBusiness(data.business)
           setUser(null)
         } else if (data.user) {
+          console.log('[AUTH CONTEXT] Setting customer auth')
           setUser(data.user)
           setBusiness(null)
         } else {
+          console.log('[AUTH CONTEXT] Clearing auth')
           setUser(null)
           setBusiness(null)
         }
       } else {
+        console.log('[AUTH CONTEXT] Auth check failed with status:', response.status)
         setUser(null)
         setBusiness(null)
       }
     } catch (error) {
+      console.error('[AUTH CONTEXT] Error in checkAuth:', error)
       setUser(null)
       setBusiness(null)
     } finally {
       setLoading(false)
     }
-  }, [tenant?.slug])
+  }, [tenant?.slug, tenant?.tenantId])
 
   useEffect(() => {
     if (!tenant?.slug) {
@@ -202,6 +235,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function logout() {
+    // Limpar cache de branding do tenant anterior
+    clearBrandingCache()
+    
     await fetch('/api/auth/logout', withTenantHeaders({ method: 'POST' }, tenant?.slug))
     setUser(null)
     setBusiness(null)
@@ -261,6 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{ 
       user, 
       business,
+      tenantSlug: tenant?.slug,
       loading, 
       loginCustomer, 
       registerCustomer, 

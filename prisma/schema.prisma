@@ -99,6 +99,9 @@ model Business {
   financialTransactions FinancialTransaction[]
   aiInsightLogs     AiInsightLog[]
   whatsappQueue     WhatsAppMessageQueue[]
+  whatsappConversations WhatsAppConversation[]
+  whatsappInboundMessages WhatsAppInboundMessage[]
+  whatsappConfig    WhatsAppBusinessConfig?
   dilutionRecipes   DilutionRecipe[]
   dilutionBatches   DilutionBatch[]
   usageTemplates    ServiceProductUsageTemplate[]
@@ -352,7 +355,7 @@ model Product {
   
   // Novos campos para diluição
   isConcentrated Boolean @default(false) @map("is_concentrated")
-  baseUnit      String   @default("ml") // 'ml', 'g', 'unit'
+  baseUnit      String   @default("ml") @map("base_unit") // 'ml', 'g', 'unit'
   packageSizeMl Int      @default(0) @map("package_size_ml")
   costTotal     Decimal  @default(0) @db.Decimal(12, 2) @map("cost_total")
   stockMinMl    Int      @default(0) @map("stock_min_ml")
@@ -598,12 +601,83 @@ model WhatsAppMessageQueue {
   error       String?
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
+  conversationId String? @map("conversation_id")
+  inboundMessageId String? @map("inbound_message_id")
+  retryCount  Int      @default(0) @map("retry_count")
+  nextAttemptAt DateTime? @map("next_attempt_at")
 
   business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer    Customer? @relation(fields: [customerId], references: [id])
+  conversation WhatsAppConversation? @relation(fields: [conversationId], references: [id])
 
   @@index([businessId, status])
+  @@index([businessId, conversationId])
   @@map("whatsapp_message_queue")
+}
+
+enum WhatsAppConversationStatus {
+  ACTIVE
+  INACTIVE
+  AWAITING_RESPONSE
+
+  @@map("whatsapp_conversation_status")
+}
+
+model WhatsAppConversation {
+  id                String   @id @default(cuid())
+  businessId        String   @map("business_id")
+  customerPhone     String   @map("customer_phone")
+  customerId        String?  @map("customer_id")
+  lastCustomerMessageAt DateTime? @map("last_customer_message_at")
+  stateJson         Json     @default("{}") @map("state_json")
+  status            WhatsAppConversationStatus @default(ACTIVE)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  business          Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  inboundMessages   WhatsAppInboundMessage[]
+  queueMessages     WhatsAppMessageQueue[]
+
+  @@unique([businessId, customerPhone])
+  @@index([businessId, status])
+  @@map("whatsapp_conversations")
+}
+
+model WhatsAppInboundMessage {
+  id              String   @id @default(cuid())
+  businessId      String   @map("business_id")
+  conversationId  String   @map("conversation_id")
+  fromPhone       String   @map("from_phone")
+  text            String
+  receivedAt      DateTime @map("received_at")
+  rawJson         Json     @default("{}") @map("raw_json")
+  waMessageId     String?  @map("wa_message_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  conversation    WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, conversationId])
+  @@index([businessId, receivedAt])
+  @@map("whatsapp_inbound_messages")
+}
+
+model WhatsAppBusinessConfig {
+  id              String  @id @default(cuid())
+  businessId      String  @unique @map("business_id")
+  phoneNumberId   String  @map("phone_number_id")
+  accessToken     String  @map("access_token")
+  displayName     String? @map("display_name")
+  appSecret       String? @map("app_secret")
+  isActive        Boolean @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([isActive])
+  @@map("whatsapp_business_config")
 }
 
 model Settings {
@@ -708,6 +782,10 @@ enum NotificationTemplateType {
   APPOINTMENT_24H_REMINDER
   APPOINTMENT_1H_REMINDER
   APPOINTMENT_COMPLETED
+  // WhatsApp Cloud API UTILITY templates (24h window)
+  APPOINTMENT_CONFIRMATION_UTILITY
+  APPOINTMENT_REMINDER_UTILITY
+  REOPEN_CONVERSATION_UTILITY
 
   @@map("notification_template_type")
 }
@@ -839,6 +917,12 @@ model DilutionBatch {
   usedConcentrateMl Int      @map("used_concentrate_ml")
   usedWaterMl       Int      @map("used_water_ml")
   notes             String?
+  
+  // Snapshot da receita no momento do preparo (para detectar alterações posteriores)
+  recipeNameSnapshot        String?  @map("recipe_name_snapshot")
+  ratioProductSnapshot      Float?   @map("ratio_product_snapshot")
+  ratioWaterSnapshot        Float?   @map("ratio_water_snapshot")
+  targetBottleMlSnapshot    Int?     @map("target_bottle_ml_snapshot")
   
   createdByUserId   String?  @map("created_by_user_id")
   createdByUser     User?    @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)

@@ -16,7 +16,9 @@ import Link from 'next/link'
 import type { Appointment, User } from '@/lib/types'
 
 export default function AgendaPage() {
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
+  if (!isAuthorized) return null
+  
   return (
     <RequireLoadingComplete>
       <AgendaContent />
@@ -30,6 +32,7 @@ function AgendaContent() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [error, setError] = useState<string | null>(null)
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+  const [transitioning, setTransitioning] = useState(false)
 
   const dateStr = format(currentDate, 'yyyy-MM-dd')
   const { data: appointments = [], isLoading } = useData<Appointment[]>(
@@ -42,15 +45,24 @@ function AgendaContent() {
   )
 
   function goToPreviousDay() {
+    if (transitioning) return
+    setTransitioning(true)
     setCurrentDate(subDays(currentDate, 1))
+    setTimeout(() => setTransitioning(false), 300)
   }
 
   function goToNextDay() {
+    if (transitioning) return
+    setTransitioning(true)
     setCurrentDate(addDays(currentDate, 1))
+    setTimeout(() => setTransitioning(false), 300)
   }
 
   function goToToday() {
+    if (transitioning) return
+    setTransitioning(true)
     setCurrentDate(new Date())
+    setTimeout(() => setTransitioning(false), 300)
   }
 
   const dateDisplay = isToday(currentDate) 
@@ -77,7 +89,10 @@ function AgendaContent() {
         <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-700">
           <button
             onClick={goToPreviousDay}
-            className="flex items-center justify-center w-10 h-10 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-slate-800 transition-colors text-gray-300 hover:text-blue-400 text-lg"
+            disabled={transitioning}
+            className={`flex items-center justify-center w-10 h-10 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-slate-800 transition-colors text-gray-300 hover:text-blue-400 text-lg ${
+              transitioning ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
             title="Dia anterior"
           >
             ←
@@ -95,13 +110,19 @@ function AgendaContent() {
           <div className="flex gap-2">
             <button
               onClick={goToToday}
-              className="px-4 py-2 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-slate-800 transition-colors text-gray-300 hover:text-blue-400 text-sm"
+              disabled={transitioning}
+              className={`px-4 py-2 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-slate-800 transition-colors text-gray-300 hover:text-blue-400 text-sm ${
+                transitioning ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
-              Hoje
+              {transitioning ? 'Carregando...' : 'Hoje'}
             </button>
             <button
               onClick={goToNextDay}
-              className="flex items-center justify-center w-10 h-10 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-slate-800 transition-colors text-gray-300 hover:text-blue-400 text-lg"
+              disabled={transitioning}
+              className={`flex items-center justify-center w-10 h-10 rounded-lg border border-gray-600 hover:border-blue-500 hover:bg-slate-800 transition-colors text-gray-300 hover:text-blue-400 text-lg ${
+                transitioning ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
               title="Próximo dia"
             >
               →
@@ -133,7 +154,7 @@ function AgendaContent() {
           </p>
           {employees.length === 0 && (
             <p className="text-yellow-600 mt-2">
-              ⚠️ Nenhum funcionário cadastrado. Configure na aba "Funcionários" das configurações.
+              ⚠️ Nenhum funcionário cadastrado. Configure na aba &quot;Funcionários&quot; das configurações.
             </p>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 
 // GET /api/users/[id] - Buscar usuário específico
 export async function GET(
@@ -9,6 +9,7 @@ export async function GET(
 ) {
   try {
     const auth = await requireAdmin()
+    await validateTenantAccess(request, auth)
     const businessId = (auth as any).businessId
     const userId = params.id
 
@@ -53,6 +54,7 @@ export async function PUT(
 ) {
   try {
     const auth = await requireAdmin()
+    await validateTenantAccess(request, auth)
     const businessId = (auth as any).businessId
     const userId = params.id
 
@@ -106,6 +108,7 @@ export async function DELETE(
 ) {
   try {
     const auth = await requireAdmin()
+    await validateTenantAccess(request, auth)
     const businessId = (auth as any).businessId
     const userId = params.id
 

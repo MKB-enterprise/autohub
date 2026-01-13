@@ -14,8 +14,10 @@ async function resolveTenant(request: NextRequest) {
   const headerSlug = request.headers.get('x-tenant-slug') || undefined
   const authToken = request.cookies.get('auth_token')?.value
 
-  // Acesso público por slug
-  if (!authToken && headerSlug) {
+  // Acesso público por slug (ou quando token é só de cliente)
+  // Se não houver token, ou token não tiver businessId, caímos aqui usando o header
+  const tryResolveByHeader = async () => {
+    if (!headerSlug) return null
     const business = await prisma.business.findUnique({
       where: { slug: headerSlug },
       select: { id: true, name: true, slug: true, isActive: true }
@@ -28,13 +30,19 @@ async function resolveTenant(request: NextRequest) {
     return { tenantId: business.id, tenantSlug: business.slug || headerSlug, business }
   }
 
-  // Acesso autenticado via token
   if (!authToken) {
+    const resolved = await tryResolveByHeader()
+    if (resolved) return resolved
     throw new Error('Não autenticado')
   }
 
+  // Acesso autenticado via token
   const payload = verifyToken(authToken)
+
+  // Se o token é de cliente (sem businessId), usar headerSlug
   if (!payload?.businessId) {
+    const resolved = await tryResolveByHeader()
+    if (resolved) return resolved
     throw new Error('Token inválido')
   }
 

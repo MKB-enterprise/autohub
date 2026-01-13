@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { startOfDay, endOfDay, subDays, startOfMonth } from 'date-fns'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Garantir que o token pertence ao tenant da URL
+    const auth = await requireAdmin()
+    await validateTenantAccess(request as any, auth)
+
+    // Resolver tenant para aplicar filtro
+    const { context } = await resolveTenantFromRequest(request as any)
+    if (!context || !context.tenantId) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 403 })
+    }
+    const businessId: string = context.tenantId
+
     const today = new Date()
     const yesterday = subDays(today, 1)
     const startOfCurrentMonth = startOfMonth(today)
@@ -11,6 +24,7 @@ export async function GET() {
     // Agendamentos hoje
     const appointmentsToday = await prisma.appointment.count({
       where: {
+        businessId,
         startDatetime: {
           gte: startOfDay(today),
           lte: endOfDay(today)
@@ -22,6 +36,7 @@ export async function GET() {
     // Agendamentos ontem
     const appointmentsYesterday = await prisma.appointment.count({
       where: {
+        businessId,
         startDatetime: {
           gte: startOfDay(yesterday),
           lte: endOfDay(yesterday)
@@ -31,11 +46,12 @@ export async function GET() {
     })
 
     // Total de clientes
-    const totalClients = await prisma.customer.count()
+    const totalClients = await prisma.customer.count({ where: { businessId } })
 
     // Clientes novos este mês
     const clientsThisMonth = await prisma.customer.count({
       where: {
+        businessId,
         createdAt: { gte: startOfCurrentMonth }
       }
     })
@@ -46,6 +62,7 @@ export async function GET() {
     // Carros em serviço (agendamentos em andamento)
     const carsInService = await prisma.appointment.count({
       where: {
+        businessId,
         status: 'IN_PROGRESS'
       }
     })
@@ -53,6 +70,7 @@ export async function GET() {
     // Receita hoje
     const appointmentsTodayWithPrice = await prisma.appointment.findMany({
       where: {
+        businessId,
         startDatetime: {
           gte: startOfDay(today),
           lte: endOfDay(today)
@@ -71,6 +89,7 @@ export async function GET() {
     const thirtyDaysAgo = subDays(today, 30)
     const appointmentsLast30Days = await prisma.appointment.findMany({
       where: {
+        businessId,
         startDatetime: {
           gte: thirtyDaysAgo,
           lte: endOfDay(today)

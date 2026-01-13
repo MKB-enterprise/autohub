@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getCurrentUser, requireAdmin } from '@/lib/auth'
+import { getCurrentUser, requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/services - Listar serviços
 export async function GET(request: NextRequest) {
   try {
+    const user = await getCurrentUser().catch(() => null)
+    if (user) {
+      await validateTenantAccess(request, user)
+    }
+
     const { searchParams } = new URL(request.url)
     const activeOnly = searchParams.get('activeOnly') === 'true'
-    const qpBusinessId = searchParams.get('businessId') || undefined
 
-    const user = await getCurrentUser().catch(() => null)
-    let businessId = qpBusinessId || (user?.businessId as string | undefined)
-    if (!businessId) {
-      const biz = await prisma.business.findFirst({ select: { id: true } })
-      businessId = biz?.id
-    }
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = user?.businessId || (context ? context.tenantId : undefined)
 
     const where: any = {}
     if (businessId) where.businessId = businessId
@@ -50,6 +51,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    if (!context) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 400 })
+    }
+    const businessId: string = context.tenantId
+
     const body = await request.json()
     const { name, description, durationMinutes, price, isActive, serviceGroup, categoryId, products } = body
 
@@ -83,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     const service = await prisma.service.create({
       data: {
-        businessId: (admin as any).businessId,
+        businessId,
         name,
         description,
         durationMinutes,

@@ -1,11 +1,12 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/lib/AuthContext'
 import { useNavigation } from '@/lib/NavigationContext'
 import { useTenantPath } from '@/lib/tenant-path'
+import { useTenant } from '@/lib/TenantContext'
 import Image from 'next/image'
 
 const adminMenuItems = [
@@ -15,8 +16,7 @@ const adminMenuItems = [
   { href: 'carros', label: 'Carros', icon: '🚗' },
   { href: 'servicos', label: 'Serviços', icon: '🔧' },
   { href: 'categorias', label: 'Categorias', icon: '🏷️' },
-  { href: 'produtos', label: 'Produtos', icon: '📦' },
-  { href: 'estoque/diluicao', label: 'Diluição', icon: '🧪' },
+  { href: 'estoque/diluicao', label: 'Estoque & Diluição', icon: '🧪' },
   { href: 'estoque/movimentacoes', label: 'Movimentações', icon: '📊' },
   { href: 'configuracoes', label: 'Configurações', icon: '⚙️' },
 ]
@@ -32,6 +32,8 @@ function Sidebar() {
   const { user, business, logout } = useAuth()
   const { startNavigation } = useNavigation()
   const getTenantPath = useTenantPath()
+  const { tenant, settings } = useTenant()
+  const [loggingOut, setLoggingOut] = useState(false)
 
   // Aceita user (customer) ou business
   if (!user && !business) return null
@@ -43,9 +45,28 @@ function Sidebar() {
   // Dados de exibição
   const displayName = business?.name || user?.name || 'Usuário'
   const displayLabel = business ? 'Negócio' : (user?.isAdmin ? 'Administrador' : 'Cliente')
+  const branding = settings?.branding
+  const tenantDisplay = branding?.displayName || tenant?.name || 'AutoHub'
+  const tenantLogo = !isAdmin ? branding?.logoUrl : '/autohub-logo.png'
+  const tenantInitials = tenantDisplay
+    .split(' ')
+    .map((p) => p.trim()[0])
+    .filter(Boolean)
+    .join('')
+    .slice(0, 2)
 
   const handleNavigate = () => {
     startNavigation()
+  }
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await logout()
+    } catch (err) {
+      setLoggingOut(false)
+    }
   }
 
   return (
@@ -53,7 +74,19 @@ function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-gray-800 flex items-center justify-center">
         <Link href={getTenantPath(isAdmin ? 'dashboard' : 'cliente')} className="flex items-center justify-center">
-          <Image src="/autohub-logo.png" alt="AutoHub" width={140} height={50} className="max-h-10 object-contain" />
+          {tenantLogo ? (
+            <Image
+              src={tenantLogo}
+              alt={tenantDisplay}
+              width={140}
+              height={50}
+              className="max-h-10 object-contain"
+            />
+          ) : (
+            <div className="px-4 py-2 rounded-lg bg-gray-800 text-white font-semibold text-sm">
+              {tenantInitials}
+            </div>
+          )}
         </Link>
       </div>
 
@@ -100,11 +133,14 @@ function Sidebar() {
           </div>
         </div>
         <button
-          onClick={() => logout()}
-          className="w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:bg-gray-800 hover:text-red-400 rounded-lg transition-all text-sm"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          className={`w-full flex items-center gap-3 px-4 py-2 text-gray-400 hover:bg-gray-800 hover:text-red-400 rounded-lg transition-all text-sm ${
+            loggingOut ? 'opacity-50 cursor-not-allowed' : ''
+          }`}
         >
           <span>🚪</span>
-          <span>Sair</span>
+          <span>{loggingOut ? 'Saindo...' : 'Sair'}</span>
         </button>
       </div>
     </aside>

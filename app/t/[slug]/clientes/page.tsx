@@ -33,7 +33,7 @@ interface Customer {
 }
 
 export default function ClientesPage() {
-  useRequireBusinessAuth()
+  const isAuthorized = useRequireBusinessAuth()
   const router = useRouter()
   const getTenantPath = useTenantPath()
   const { user, business, loading: authLoading } = useAuth()
@@ -123,6 +123,8 @@ export default function ClientesPage() {
       setError(err.message)
     }
   })
+
+  if (!isAuthorized) return null
 
   // Hook para deletar cliente
   async function handleDelete(customerId: string) {

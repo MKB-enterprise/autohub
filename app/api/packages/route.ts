@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { getCurrentUser, requireAdmin } from '@/lib/auth'
+import { getCurrentUser, requireAdmin, validateTenantAccess } from '@/lib/auth'
+import { resolveTenantFromRequest } from '@/lib/tenant-resolver'
 
 // GET /api/packages - Listar pacotes (público)
 export async function GET(request: NextRequest) {
@@ -10,7 +11,11 @@ export async function GET(request: NextRequest) {
     const qpBusinessId = searchParams.get('businessId') || undefined
 
     const user = await getCurrentUser().catch(() => null)
-    let businessId = qpBusinessId || (user?.businessId as string | undefined)
+    if (user) {
+      await validateTenantAccess(request, user)
+    }
+    const { context } = await resolveTenantFromRequest(request)
+    let businessId = qpBusinessId || context?.tenantId || (user?.businessId as string | undefined)
     if (!businessId) {
       const biz = await prisma.business.findFirst({ select: { id: true } })
       businessId = biz?.id
@@ -66,6 +71,13 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
+    const { context } = await resolveTenantFromRequest(request)
+    const businessId = context?.tenantId || (admin as any).businessId
+
+    if (!businessId) {
+      return NextResponse.json({ error: 'Tenant não encontrado' }, { status: 403 })
+    }
     const body = await request.json()
     const { name, description, discountPercent, serviceIds, isActive } = body
 
@@ -100,7 +112,7 @@ export async function POST(request: NextRequest) {
 
     const pkg = await prisma.servicePackage.create({
       data: {
-        businessId: (admin as any).businessId,
+        businessId,
         name,
         description: description || null,
         discountPercent,

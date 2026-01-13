@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, validateTenantAccess } from '@/lib/auth'
 
 // GET /api/finance/transactions
 export async function GET(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
     const { searchParams } = new URL(request.url)
     const from = searchParams.get('from')
     const to = searchParams.get('to')
@@ -40,6 +41,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const admin = await requireAdmin()
+    await validateTenantAccess(request, admin)
     const body = await request.json()
     const { accountId, type, amount, description, occurredAt, status = 'PENDING' } = body
 

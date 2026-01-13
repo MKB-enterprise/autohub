@@ -12,6 +12,7 @@ import { getTenantSlugFromUrl, withTenantHeaders } from '@/lib/tenant-client'
 interface TenantContextType {
   tenant: {
     id: string
+    tenantId: string // alias para id (compatibilidade)
     name: string
     slug: string
   } | null
@@ -78,6 +79,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         setError(null)
         setTenant({
           id: data.tenant?.id || slug,
+          tenantId: data.tenant?.id || slug,
           name: data.tenant?.name || data.branding?.displayName || slug,
           slug: slug
         })
@@ -99,6 +101,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         setError(null)
         setTenant({
           id: data.tenant?.id || slug,
+          tenantId: data.tenant?.id || slug,
           name: data.tenant?.name || data.branding?.displayName || slug,
           slug: slug
         })
@@ -148,6 +151,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
       setTenant({
         id: data.tenant?.id || slug,
+        tenantId: data.tenant?.id || slug,
         name: data.tenant?.name || data.branding?.displayName || slug,
         slug: slug
       })
@@ -230,4 +234,13 @@ function applyBranding(settings: TenantSettingsData) {
 export function useBranding() {
   const { settings } = useTenant()
   return settings?.branding || null
+}
+
+/**
+ * Limpa o cache de branding global
+ * Deve ser chamada ao fazer logout ou trocar de tenant
+ */
+export function clearBrandingCache() {
+  globalBrandingCache.clear()
+  loadingPromises.clear()
 }
